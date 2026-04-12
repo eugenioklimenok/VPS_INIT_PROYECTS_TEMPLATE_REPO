@@ -21,6 +21,24 @@ Fase 7 implementada a nivel de template y contrato.
 
 El template usa placeholders `__NOMBRE__` para que `new-project` pueda renderizar el proyecto sin ambiguedad.
 
+## Regla de archivos fuente del template
+
+El framework no guarda dotfiles criticos del proyecto como fuente directa dentro del template.
+
+Se versionan con nombres neutrales:
+
+- `gitignore.template`
+- `env/env.example.template`
+- `env/env.dev.template`
+- `env/env.prod.template`
+
+`new-project` los materializa como:
+
+- `.gitignore`
+- `env/.env.example`
+- `env/.env.dev`
+- `env/.env.prod`
+
 ## Decisiones cerradas
 
 - stack base: FastAPI + PostgreSQL + n8n + Caddy

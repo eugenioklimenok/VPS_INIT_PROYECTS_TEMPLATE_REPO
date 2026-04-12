@@ -33,6 +33,7 @@ Flags principales:
 - valida dominio y puertos
 - resuelve la ruta de salida
 - copia `templates/fullstack`
+- materializa archivos fuente del template a sus nombres finales
 - renderiza placeholders del template
 - marca scripts `.sh` como ejecutables
 - emite un resumen final con proximos pasos
@@ -56,6 +57,15 @@ Flags principales:
 ## Resultado
 
 La siguiente fase ya puede apoyarse en proyectos generados automaticamente desde el template oficial.
+
+## Regla de materializacion
+
+`new-project` convierte archivos fuente del framework:
+
+- `gitignore.template` -> `.gitignore`
+- `env/env.example.template` -> `env/.env.example`
+- `env/env.dev.template` -> `env/.env.dev`
+- `env/env.prod.template` -> `env/.env.prod`
 
 ## Validacion realizada
 

@@ -27,6 +27,12 @@ TEXT_FILE_SUFFIXES = {
     ".cfg",
     ".gitignore",
 }
+TEMPLATE_FILE_RENAMES = {
+    "gitignore.template": ".gitignore",
+    "env/env.example.template": "env/.env.example",
+    "env/env.dev.template": "env/.env.dev",
+    "env/env.prod.template": "env/.env.prod",
+}
 
 
 @dataclass
@@ -199,6 +205,7 @@ def generate_project(config: NewProjectConfig) -> None:
     try:
         config.base_path.mkdir(parents=True, exist_ok=True)
         shutil.copytree(template_path, config.output_path)
+        materialize_template_filenames(config.output_path)
         render_tree(config.output_path, build_placeholder_map(config))
         make_scripts_executable(config.output_path / "scripts")
     except Exception as exc:  # pragma: no cover - defensive path
@@ -223,6 +230,16 @@ def build_placeholder_map(config: NewProjectConfig) -> dict[str, str]:
         "__N8N_BASIC_AUTH_PASSWORD__": config.n8n_basic_auth_password,
         "__SECRET_KEY__": config.secret_key,
     }
+
+
+def materialize_template_filenames(project_path: Path) -> None:
+    for source_relative, target_relative in TEMPLATE_FILE_RENAMES.items():
+        source_path = project_path / source_relative
+        target_path = project_path / target_relative
+        if not source_path.exists():
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.rename(target_path)
 
 
 def render_tree(project_path: Path, placeholders: dict[str, str]) -> None:
