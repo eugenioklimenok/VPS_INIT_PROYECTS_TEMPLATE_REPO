@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/bash/common.sh
+source "$REPO_ROOT/lib/bash/common.sh"
+# shellcheck source=../lib/bash/log.sh
+source "$REPO_ROOT/lib/bash/log.sh"
+# shellcheck source=../lib/bash/results.sh
+source "$REPO_ROOT/lib/bash/results.sh"
+# shellcheck source=../lib/bash/checks_os.sh
+source "$REPO_ROOT/lib/bash/checks_os.sh"
+# shellcheck source=../lib/bash/checks_user.sh
+source "$REPO_ROOT/lib/bash/checks_user.sh"
+# shellcheck source=../lib/bash/checks_ssh.sh
+source "$REPO_ROOT/lib/bash/checks_ssh.sh"
+# shellcheck source=../lib/bash/checks_ufw.sh
+source "$REPO_ROOT/lib/bash/checks_ufw.sh"
+# shellcheck source=../lib/bash/checks_docker.sh
+source "$REPO_ROOT/lib/bash/checks_docker.sh"
+# shellcheck source=../lib/bash/checks_dirs.sh
+source "$REPO_ROOT/lib/bash/checks_dirs.sh"
+# shellcheck source=../lib/bash/checks_packages.sh
+source "$REPO_ROOT/lib/bash/checks_packages.sh"
+# shellcheck source=../lib/bash/checks_system.sh
+source "$REPO_ROOT/lib/bash/checks_system.sh"
+
+STRICT_MODE="no"
+VERBOSE_MODE="no"
+JSON_MODE="no"
+EXPECTED_USER=""
+OUTPUT_FILE=""
+
+usage() {
+  cat <<'EOF'
+Usage: audit-vps [options]
+
+Options:
+  --expected-user <user>   Expected operating user (default: from config or alex)
+  --strict                 Treat some warnings as failures
+  --verbose                Show extra details
+  --json                   Emit JSON to stdout or --output file
+  --output <file>          Save human or JSON output to file
+  --help                   Show this help
+EOF
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --expected-user)
+        shift
+        EXPECTED_USER="${1:-}"
+        [[ -n "$EXPECTED_USER" ]] || die "Missing value for --expected-user"
+        ;;
+      --strict)
+        STRICT_MODE="yes"
+        ;;
+      --verbose)
+        VERBOSE_MODE="yes"
+        LOG_VERBOSE="yes"
+        ;;
+      --json)
+        JSON_MODE="yes"
+        ;;
+      --output)
+        shift
+        OUTPUT_FILE="${1:-}"
+        [[ -n "$OUTPUT_FILE" ]] || die "Missing value for --output"
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "Unknown argument: $1"
+        ;;
+    esac
+    shift
+  done
+}
+
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+emit_human_report() {
+  if [[ -n "$OUTPUT_FILE" ]]; then
+    ensure_parent_dir "$OUTPUT_FILE"
+  fi
+
+  {
+    printf '=== audit-vps report ===\n'
+    printf 'Host: %s\n' "$(safe_hostname)"
+    printf 'Timestamp: %s\n' "$(current_timestamp)"
+    printf 'Expected user: %s\n' "$EXPECTED_USER"
+    printf 'Strict mode: %s\n' "$STRICT_MODE"
+    printf '\n'
+    print_results_human
+    printf '\n'
+    print_results_summary
+  } > "${OUTPUT_FILE:-/dev/stdout}"
+}
+
+emit_json_report() {
+  local total i line status category message comma
+
+  if [[ -n "$OUTPUT_FILE" ]]; then
+    ensure_parent_dir "$OUTPUT_FILE"
+  fi
+
+  {
+    printf '{\n'
+    printf '  "host": "%s",\n' "$(json_escape "$(safe_hostname)")"
+    printf '  "timestamp": "%s",\n' "$(json_escape "$(current_timestamp)")"
+    printf '  "expected_user": "%s",\n' "$(json_escape "$EXPECTED_USER")"
+    printf '  "strict_mode": "%s",\n' "$(json_escape "$STRICT_MODE")"
+    printf '  "summary": {\n'
+    printf '    "ok": %s,\n' "$RESULT_OKS"
+    printf '    "info": %s,\n' "$RESULT_INFOS"
+    printf '    "warn": %s,\n' "$RESULT_WARNS"
+    printf '    "fail": %s,\n' "$RESULT_FAILS"
+    printf '    "exit_code": %s\n' "$EXIT_CODE"
+    printf '  },\n'
+    printf '  "results": [\n'
+
+    total="${#RESULTS[@]}"
+    for ((i=0; i<total; i++)); do
+      line="${RESULTS[$i]}"
+      IFS='|' read -r status category message <<< "$line"
+      comma=""
+      if [[ $i -lt $((total - 1)) ]]; then
+        comma=","
+      fi
+      printf '    {"status":"%s","category":"%s","message":"%s"}%s\n' \
+        "$(json_escape "$status")" \
+        "$(json_escape "$category")" \
+        "$(json_escape "$message")" \
+        "$comma"
+    done
+
+    printf '  ]\n'
+    printf '}\n'
+  } > "${OUTPUT_FILE:-/dev/stdout}"
+}
+
+main() {
+  load_defaults "$REPO_ROOT/config/defaults.env"
+  parse_args "$@"
+
+  EXPECTED_USER="$(config_get_or_default "$EXPECTED_USER" "$DEFAULT_USER")"
+
+  init_results
+  log_step "Running VPS audit"
+  log_debug "Framework root: $REPO_ROOT"
+  log_debug "Expected user: $EXPECTED_USER"
+
+  check_os
+  check_user "$EXPECTED_USER"
+  check_ssh
+  check_ufw
+  check_docker "$EXPECTED_USER"
+  check_dirs "$EXPECTED_USER"
+  check_packages
+  check_system
+
+  set_exit_code_from_results
+
+  if is_yes "$JSON_MODE"; then
+    emit_json_report
+  else
+    emit_human_report
+  fi
+
+  exit "$EXIT_CODE"
+}
+
+main "$@"
