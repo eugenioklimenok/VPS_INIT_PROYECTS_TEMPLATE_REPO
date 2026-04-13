@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import signal
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,13 +44,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         config = build_config(args)
+        print("[STEP] Validando estructura y env del proyecto")
         validate_project(config)
         if config.validate_only:
             print_validation_summary(config)
             return 0
+        print("[STEP] Verificando Docker y Compose")
         ensure_docker_available()
+        print("[STEP] Ejecutando deploy real (docker compose up)")
         run_compose_up(config)
         if not config.skip_health_checks:
+            print("[STEP] Ejecutando checks de salud del stack")
             run_health_checks(config)
     except UsageError as exc:
         print(f"Usage error: {exc}", file=sys.stderr)
@@ -105,7 +111,7 @@ def run_compose_up(config: DeployConfig) -> None:
     if not config.no_build:
         command.append("--build")
     try:
-        run_command(command, cwd=config.project_path, error_prefix="fallo docker compose up")
+        run_command_streaming(command, cwd=config.project_path, error_prefix="fallo docker compose up")
     except ProjectOpsError as exc:
         conflicts = find_port_conflicts(str(exc), config.env_values)
         if conflicts:
@@ -143,6 +149,37 @@ def run_health_checks(config: DeployConfig) -> None:
     ensure_http_status(caddy_root, config.timeout, {200}, "root del stack")
     ensure_http_status(caddy_health, config.timeout, {200}, "health de la API")
     ensure_http_status(n8n_url, config.timeout, HTTP_OK_STATUSES, "ruta /n8n/")
+
+
+def run_command_streaming(command: list[str], cwd: Path, error_prefix: str) -> None:
+    printable = " ".join(command)
+    print(f"[INFO] Ejecutando: {printable}")
+    process = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            print(line.rstrip())
+        return_code = process.wait()
+    except KeyboardInterrupt as exc:
+        process.send_signal(signal.SIGINT)
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+        raise ProjectOpsError(
+            "deploy interrumpido por usuario. Puede quedar estado parcial. "
+            "Recupera con: docker compose --env-file env/.env.dev -f docker-compose.yml -f compose.override.yml down -v --remove-orphans"
+        ) from exc
+
+    if return_code != 0:
+        raise ProjectOpsError(f"{error_prefix}: codigo de salida {return_code}")
 
 
 def print_validation_summary(config: DeployConfig) -> None:

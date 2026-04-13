@@ -25,6 +25,7 @@ Flags principales:
 - verifica que no queden placeholders `__PLACEHOLDER__`
 - hace preflight de puertos host antes del `up`
 - en modo normal ejecuta `docker compose up -d`
+- muestra progreso por etapas y salida en vivo durante `docker compose up`
 - por default agrega `--build`
 - usa `docker-compose.yml` para `prod`
 - usa `docker-compose.yml` + `compose.override.yml` para `dev`
@@ -55,6 +56,10 @@ Si algun puerto publicado del env ya esta ocupado en el host, `deploy-project` d
 ## Regla de warm-up
 
 Si el stack responde `connection refused` durante los primeros segundos posteriores al `up`, `deploy-project` no debe fallar de inmediato. Debe reintentar los checks HTTP hasta agotar el `--timeout`.
+
+## Regla de interrupcion segura
+
+Si el usuario interrumpe el deploy (`Ctrl+C`), `deploy-project` debe informar que puede quedar estado parcial y mostrar el comando de recuperacion (`docker compose down -v --remove-orphans`).
 
 ## Limitacion de este entorno
 
