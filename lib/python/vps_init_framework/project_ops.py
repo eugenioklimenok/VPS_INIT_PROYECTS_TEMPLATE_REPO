@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -70,6 +71,13 @@ REQUIRED_ENV_KEYS = (
     "N8N_BASIC_AUTH_PASSWORD",
     "SECRET_KEY",
 )
+PUBLISHED_PORT_KEYS = (
+    "API_PORT",
+    "POSTGRES_PORT",
+    "N8N_PORT",
+    "CADDY_HTTP_PORT",
+    "CADDY_HTTPS_PORT",
+)
 HTTP_OK_STATUSES = {200, 301, 302, 401, 403}
 
 
@@ -103,9 +111,8 @@ def load_env_file(path: Path) -> dict[str, str]:
 
 
 def validate_ports(env_values: dict[str, str]) -> None:
-    port_keys = ("API_PORT", "POSTGRES_PORT", "N8N_PORT", "CADDY_HTTP_PORT", "CADDY_HTTPS_PORT")
     ports: list[int] = []
-    for key in port_keys:
+    for key in PUBLISHED_PORT_KEYS:
         try:
             value = int(env_values[key])
         except ValueError as exc:
@@ -115,6 +122,34 @@ def validate_ports(env_values: dict[str, str]) -> None:
         ports.append(value)
     if len(set(ports)) != len(ports):
         raise ProjectOpsError("los puertos publicados no deben repetirse")
+
+
+def get_published_ports(env_values: dict[str, str]) -> dict[str, int]:
+    ports: dict[str, int] = {}
+    for key in PUBLISHED_PORT_KEYS:
+        ports[key] = int(env_values[key])
+    return ports
+
+
+def is_tcp_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.2)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def find_port_conflicts(message: str, env_values: dict[str, str]) -> list[str]:
+    matches = sorted({int(match) for match in re.findall(r"(?::|port )(\d{2,5})(?=\D|$)", message)})
+    if not matches:
+        return []
+    by_port = {port: key for key, port in get_published_ports(env_values).items()}
+    conflicts: list[str] = []
+    for port in matches:
+        key = by_port.get(port)
+        if key:
+            conflicts.append(f"{key}={port}")
+        else:
+            conflicts.append(str(port))
+    return conflicts
 
 
 def find_unresolved_placeholders(project_path: Path) -> list[str]:

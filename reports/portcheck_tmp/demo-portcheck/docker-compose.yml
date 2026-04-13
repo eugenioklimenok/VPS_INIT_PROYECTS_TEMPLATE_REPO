@@ -1,0 +1,87 @@
+services:
+  api:
+    container_name: "demo-portcheck_api"
+    build:
+      context: ./api
+    restart: unless-stopped
+    environment:
+      APP_ENV: "${APP_ENV:-development}"
+      PROJECT_NAME: "${PROJECT_NAME}"
+      SECRET_KEY: "${SECRET_KEY}"
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      N8N_BASE_URL: "${N8N_BASE_URL}"
+    expose:
+      - "8000"
+    depends_on:
+      - db
+    networks:
+      - app_net
+
+  db:
+    container_name: "demo-portcheck_db"
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+    networks:
+      - app_net
+
+  n8n:
+    container_name: "demo-portcheck_n8n"
+    image: n8nio/n8n:1.83.2
+    restart: unless-stopped
+    environment:
+      N8N_HOST: "${DOMAIN_NAME}"
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: "${N8N_PROTOCOL}"
+      N8N_EDITOR_BASE_URL: "${N8N_BASE_URL}"
+      WEBHOOK_URL: "${N8N_BASE_URL}"
+      N8N_PATH: "/n8n/"
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: "${N8N_BASIC_AUTH_USER}"
+      N8N_BASIC_AUTH_PASSWORD: "${N8N_BASIC_AUTH_PASSWORD}"
+      DB_TYPE: "sqlite"
+      TZ: "${TIMEZONE}"
+    ports:
+      - "${N8N_PORT}:5678"
+    volumes:
+      - ./n8n/data:/home/node/.n8n
+    networks:
+      - app_net
+
+  caddy:
+    container_name: "demo-portcheck_caddy"
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - n8n
+    environment:
+      DOMAIN_NAME: "${DOMAIN_NAME}"
+    ports:
+      - "${CADDY_HTTP_PORT}:80"
+      - "${CADDY_HTTPS_PORT}:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    name: "demo-portcheck_net"
+
+volumes:
+  caddy_data:
+  caddy_config:

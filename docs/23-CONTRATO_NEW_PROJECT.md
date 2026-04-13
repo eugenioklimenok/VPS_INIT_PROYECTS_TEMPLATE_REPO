@@ -50,6 +50,16 @@ Debe:
 - credenciales iniciales seguras
 - ruta base alternativa
 
+## Defaults de puertos del scaffold
+
+Para evitar choques con servicios ya existentes en hosts de prueba o VPS no limpios, `new-project` debe generar por default:
+
+- `API_PORT=18000`
+- `POSTGRES_PORT=15432`
+- `N8N_PORT=15678`
+- `CADDY_HTTP_PORT=18080`
+- `CADDY_HTTPS_PORT=18443`
+
 ## Validaciones obligatorias
 
 ### Nombre del proyecto

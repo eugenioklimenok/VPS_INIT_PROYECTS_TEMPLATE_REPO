@@ -42,9 +42,13 @@ Flags principales:
 
 - base path por default: `DEFAULT_APPS_DIR`
 - dominio por default: `localhost`
-- puertos por default: `8000`, `5432`, `5678`, `80`, `443`
+- puertos por default: `18000`, `15432`, `15678`, `18080`, `18443`
 - `POSTGRES_DB` y `POSTGRES_USER`: nombre del proyecto con `-` reemplazado por `_`
 - passwords y `SECRET_KEY`: generados si no se informan
+
+## Regla de seguridad para puertos
+
+Los defaults del scaffold usan puertos altos a proposito para reducir colisiones con instalaciones previas, servicios legacy o pruebas repetidas en el mismo host.
 
 ## Validaciones cerradas
 

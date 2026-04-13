@@ -12,8 +12,11 @@ from vps_init_framework.project_ops import (
     ensure_docker_available,
     ensure_http_status,
     ensure_validation_ok,
+    find_port_conflicts,
     get_expected_services,
     get_running_services,
+    get_published_ports,
+    is_tcp_port_in_use,
     run_command,
     validate_project_layout,
 )
@@ -97,10 +100,32 @@ def validate_project(config: DeployConfig) -> None:
 
 
 def run_compose_up(config: DeployConfig) -> None:
+    preflight_host_ports(config)
     command = compose_base_command(config.project_path, config.env_file, config.env_name) + ["up", "-d"]
     if not config.no_build:
         command.append("--build")
-    run_command(command, cwd=config.project_path, error_prefix="fallo docker compose up")
+    try:
+        run_command(command, cwd=config.project_path, error_prefix="fallo docker compose up")
+    except ProjectOpsError as exc:
+        conflicts = find_port_conflicts(str(exc), config.env_values)
+        if conflicts:
+            joined = ", ".join(conflicts)
+            raise ProjectOpsError(
+                f"puertos ocupados en el host: {joined}. Ajusta env/.env.{config.env_name} o libera esos puertos antes del deploy"
+            ) from exc
+        raise
+
+
+def preflight_host_ports(config: DeployConfig) -> None:
+    conflicts: list[str] = []
+    for key, port in get_published_ports(config.env_values).items():
+        if is_tcp_port_in_use(port):
+            conflicts.append(f"{key}={port}")
+    if conflicts:
+        joined = ", ".join(conflicts)
+        raise ProjectOpsError(
+            f"puertos ocupados en el host antes del deploy: {joined}. Ajusta env/.env.{config.env_name} o libera esos puertos"
+        )
 
 
 def run_health_checks(config: DeployConfig) -> None:

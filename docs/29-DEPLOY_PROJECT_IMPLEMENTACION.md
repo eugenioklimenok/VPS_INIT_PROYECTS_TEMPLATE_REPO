@@ -23,6 +23,7 @@ Flags principales:
 - valida estructura del proyecto generado
 - carga y valida `env/.env.dev` o `env/.env.prod`
 - verifica que no queden placeholders `__PLACEHOLDER__`
+- hace preflight de puertos host antes del `up`
 - en modo normal ejecuta `docker compose up -d`
 - por default agrega `--build`
 - usa `docker-compose.yml` para `prod`
@@ -44,6 +45,11 @@ Flags principales:
 - variables obligatorias cargadas
 - puertos validos y no repetidos
 - template completamente renderizado
+- puertos host detectados como ocupados antes de invocar Docker
+
+## Regla de fallo temprano
+
+Si algun puerto publicado del env ya esta ocupado en el host, `deploy-project` debe fallar antes de `docker compose up` con un mensaje accionable que indique la variable afectada, por ejemplo `N8N_PORT=15678`.
 
 ## Limitacion de este entorno
 
