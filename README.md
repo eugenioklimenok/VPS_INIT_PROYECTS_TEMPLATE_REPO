@@ -81,6 +81,12 @@ Fase 10 queda cerrada con:
 - smoke tests del flujo principal agregados
 - framework completo a nivel de implementacion local
 
+Documentacion de usuario final agregada:
+
+- guia conceptual completa del framework
+- manual detallado de uso sobre Linux y VPS de laboratorio
+- quickstart operativo resumido
+
 La siguiente etapa sera validacion de punta a punta en VPS real con Docker.
 
 ## Mapa documental
@@ -120,6 +126,9 @@ La siguiente etapa sera validacion de punta a punta en VPS real con Docker.
 - `docs/32-CONTRATO_AUDIT_PROJECT.md`
 - `docs/33-OPERACION_PROYECTO_IMPLEMENTACION.md`
 - `docs/34-FASE_10_OPERACION_PROYECTO.md`
+- `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`
+- `docs/36-MANUAL_USO_PASO_A_PASO.md`
+- `docs/37-QUICKSTART.md`
 
 ## Resultado esperado
 
