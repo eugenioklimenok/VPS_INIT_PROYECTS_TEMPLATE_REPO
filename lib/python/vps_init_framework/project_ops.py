@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import socket
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -261,15 +262,32 @@ def get_running_services(project_path: Path, env_file: Path, env_name: str) -> l
 
 
 def ensure_http_status(url: str, timeout: int, accepted_statuses: set[int], label: str) -> int:
-    request = urllib.request.Request(url, method="GET")
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            status = response.status
-    except urllib.error.HTTPError as exc:
-        status = exc.code
-    except urllib.error.URLError as exc:
-        raise ProjectOpsError(f"fallo check HTTP de {label}: {exc.reason}") from exc
+    deadline = time.monotonic() + max(timeout, 1)
+    last_status: int | None = None
+    last_reason: str | None = None
 
-    if status not in accepted_statuses:
-        raise ProjectOpsError(f"status invalido en {label}: {status}")
-    return status
+    while time.monotonic() < deadline:
+        remaining = max(deadline - time.monotonic(), 0.2)
+        request = urllib.request.Request(url, method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=min(remaining, 2.0)) as response:
+                status = response.status
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            last_status = status
+        except urllib.error.URLError as exc:
+            last_reason = str(exc.reason)
+            time.sleep(0.5)
+            continue
+        else:
+            last_status = status
+
+        if status in accepted_statuses:
+            return status
+        time.sleep(0.5)
+
+    if last_reason:
+        raise ProjectOpsError(f"fallo check HTTP de {label}: {last_reason}")
+    if last_status is not None:
+        raise ProjectOpsError(f"status invalido en {label}: {last_status}")
+    raise ProjectOpsError(f"fallo check HTTP de {label}: sin respuesta")

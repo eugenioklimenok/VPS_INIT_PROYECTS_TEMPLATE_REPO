@@ -30,6 +30,7 @@ Flags principales:
 - usa `docker-compose.yml` + `compose.override.yml` para `dev`
 - verifica servicios running
 - verifica respuesta HTTP de `root`, `/health` y `/n8n/`
+- tolera warm-up inicial del stack con reintentos dentro del `--timeout`
 
 ## Reglas operativas
 
@@ -50,6 +51,10 @@ Flags principales:
 ## Regla de fallo temprano
 
 Si algun puerto publicado del env ya esta ocupado en el host, `deploy-project` debe fallar antes de `docker compose up` con un mensaje accionable que indique la variable afectada, por ejemplo `N8N_PORT=15678`.
+
+## Regla de warm-up
+
+Si el stack responde `connection refused` durante los primeros segundos posteriores al `up`, `deploy-project` no debe fallar de inmediato. Debe reintentar los checks HTTP hasta agotar el `--timeout`.
 
 ## Limitacion de este entorno
 
