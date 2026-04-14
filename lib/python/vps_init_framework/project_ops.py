@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import socket
 import time
+import http.client
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -80,6 +81,15 @@ PUBLISHED_PORT_KEYS = (
     "CADDY_HTTPS_PORT",
 )
 HTTP_OK_STATUSES = {200, 301, 302, 401, 403}
+TRANSIENT_HTTP_EXCEPTIONS = (
+    urllib.error.URLError,
+    TimeoutError,
+    socket.timeout,
+    ConnectionRefusedError,
+    ConnectionResetError,
+    ConnectionAbortedError,
+    http.client.RemoteDisconnected,
+)
 
 
 @dataclass
@@ -275,8 +285,8 @@ def ensure_http_status(url: str, timeout: int, accepted_statuses: set[int], labe
         except urllib.error.HTTPError as exc:
             status = exc.code
             last_status = status
-        except urllib.error.URLError as exc:
-            last_reason = str(exc.reason)
+        except TRANSIENT_HTTP_EXCEPTIONS as exc:
+            last_reason = str(getattr(exc, "reason", exc))
             time.sleep(0.5)
             continue
         else:

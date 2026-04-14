@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import patch
 
 from lib.python.vps_init_framework.project_ops import ensure_http_status
 
@@ -32,6 +33,28 @@ class ProjectOpsHttpRetryTest(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+    def test_ensure_http_status_handles_connection_reset_then_recovers(self) -> None:
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:  # noqa: ANN001
+                return False
+
+        with patch(
+            "lib.python.vps_init_framework.project_ops.urllib.request.urlopen",
+            side_effect=[ConnectionResetError("connection reset by peer"), FakeResponse()],
+        ):
+            status = ensure_http_status(
+                "http://127.0.0.1:18080/",
+                timeout=3,
+                accepted_statuses={200},
+                label="root",
+            )
+        self.assertEqual(status, 200)
 
 
 def reserve_free_port() -> int:
