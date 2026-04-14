@@ -18,9 +18,7 @@ __PROJECT_NAME__/
 |-- caddy/
 |-- env/
 |-- n8n/
-|   `-- data/
 |-- postgres/
-|   `-- data/
 |-- scripts/
 |-- compose.override.yml
 |-- docker-compose.yml
@@ -66,4 +64,5 @@ Placeholders principales:
 
 - `env/.env.example` se versiona
 - `env/.env.dev` y `env/.env.prod` no deben versionarse en proyectos reales
-- los directorios `postgres/data`, `n8n/data` y `backups` son persistentes
+- la persistencia de PostgreSQL y n8n usa volumenes Docker nombrados (`postgres_data`, `n8n_data`)
+- la carpeta `backups` es persistente a nivel proyecto

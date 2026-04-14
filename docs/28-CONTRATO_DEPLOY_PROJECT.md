@@ -55,7 +55,7 @@ Debe:
 ## Validaciones obligatorias
 
 - existencia de `docker-compose.yml`, `compose.override.yml`, `Makefile`
-- existencia de `api/`, `caddy/`, `env/`, `scripts/`, `postgres/data`, `n8n/data`, `backups`
+- existencia de `api/`, `caddy/`, `env/`, `scripts/`, `postgres/`, `n8n/`, `backups`
 - existencia de `env/.env.<env>`
 - variables requeridas presentes
 - puertos validos y sin duplicacion

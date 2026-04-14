@@ -50,8 +50,8 @@ REQUIRED_DIRS = (
     "backups",
     "caddy",
     "env",
-    "n8n/data",
-    "postgres/data",
+    "n8n",
+    "postgres",
     "scripts",
 )
 REQUIRED_ENV_KEYS = (

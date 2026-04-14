@@ -1,9 +1,5 @@
 env/.env.dev
 env/.env.prod
-postgres/data/*
-!postgres/data/.gitkeep
-n8n/data/*
-!n8n/data/.gitkeep
 backups/*
 !backups/.gitkeep
 api/__pycache__/

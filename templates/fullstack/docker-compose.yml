@@ -32,7 +32,7 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - ./postgres/data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - app_net
 
@@ -55,7 +55,7 @@ services:
     ports:
       - "${N8N_PORT}:5678"
     volumes:
-      - ./n8n/data:/home/node/.n8n
+      - n8n_data:/home/node/.n8n
     networks:
       - app_net
 
@@ -83,5 +83,7 @@ networks:
     name: "__PROJECT_NAME___net"
 
 volumes:
+  postgres_data:
+  n8n_data:
   caddy_data:
   caddy_config:
