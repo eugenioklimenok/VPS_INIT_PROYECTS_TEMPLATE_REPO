@@ -1,150 +1,125 @@
 # VPS_INIT_PROYECTS_TEMPLATE_REPO
 
-Base documental nueva para un framework interno orientado a:
+Framework para estandarizar todo el ciclo inicial de un proyecto en VPS Ubuntu:
 
-- bootstrap de VPS Ubuntu
-- creacion de proyectos full stack desde template
-- despliegue, auditoria y backup bajo una misma logica operativa
+- preparar host (`audit-vps`, `init-vps`, `harden-vps`)
+- crear proyecto base fullstack (`new-project`)
+- desplegar, auditar y respaldar (`deploy-project`, `audit-project`, `backup-project`)
 
-Este directorio nace como una base nueva e independiente. La carpeta original del workspace queda solo como referencia historica y no forma parte de esta nueva linea documental.
+Este repo es una plantilla operativa. Los proyectos generados (`/home/alex/apps/<proyecto>`) viven separados y pueden tener su propio Git independiente.
 
-## Objetivo
+## Que resuelve
 
-Definir una base oficial, ordenada y autocontenida para construir un framework que permita:
+Problemas que ataca este framework:
 
-1. estandarizar VPS nuevos
-2. crear proyectos full stack repetibles
-3. desplegar y operar stacks con minima friccion
-4. auditar el estado del host y del proyecto
-5. mantener backups previsibles y restaurables
+- VPS nuevos configurados "a mano" de forma inconsistente
+- tiempo perdido recreando estructura base de proyectos
+- deploys no repetibles
+- falta de auditoria y backup estandar
 
-## Estado actual de esta carpeta
+Resultado esperado:
 
-Fase 1 queda cerrada con:
+1. host Ubuntu con baseline consistente
+2. proyecto generado con estructura y envs correctos
+3. deploy reproducible sobre Docker Compose
+4. auditoria automatica de host/proyecto
+5. backups versionados con timestamp
 
-- documentacion base aprobada
-- estructura real del repo creada
-- placeholders minimos en las zonas aun vacias
+## Comandos del framework
 
-Fase 2 queda cerrada con:
+Bloque host:
 
-- contrato funcional del bloque host definido
-- alcance, flags, entradas, salidas y exit codes documentados
-- limites de `audit-vps`, `init-vps` y `harden-vps` aclarados sin ambiguedad
+- `./bin/audit-vps`
+- `./bin/init-vps`
+- `./bin/harden-vps`
 
-Fase 3 queda cerrada con:
+Bloque proyecto:
 
-- infraestructura Bash comun creada
-- defaults del framework centralizados
-- base tecnica compartida lista para el bloque host
+- `python3 ./bin/new-project <nombre>`
+- `python3 ./bin/deploy-project <ruta_proyecto> --env dev|prod`
+- `python3 ./bin/audit-project <ruta_proyecto> --env dev|prod`
+- `python3 ./bin/backup-project <ruta_proyecto> --env dev|prod`
 
-Fase 4 queda cerrada con:
+## Inicio rapido (flujo recomendado)
 
-- `audit-vps` implementado
-- checks modulares del host creados
-- auditoria read-only lista para detectar desvio del estandar
+### 1) En VPS limpio, clonar template
 
-Fase 5 queda cerrada con:
+```bash
+sudo -i
+apt update -y
+apt install -y git
+mkdir -p /opt/work && cd /opt/work
+git clone https://github.com/eugenioklimenok/VPS_INIT_PROYECTS_TEMPLATE_REPO.git
+cd VPS_INIT_PROYECTS_TEMPLATE_REPO
+chmod +x bin/*
+```
 
-- `init-vps` implementado
-- modulos de bootstrap del host creados
-- flujo del bloque host listo para completar endurecimiento
+### 2) Auditar host inicial y bootstrap
 
-Fase 6 queda cerrada con:
+```bash
+./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
+./bin/init-vps --user alex --timezone America/Argentina/Buenos_Aires --with-password-auth
+passwd alex
+su - alex
+```
 
-- `harden-vps` implementado
-- endurecimiento SSH key-only separado del bootstrap
-- bloque host completo a nivel de implementacion
+### 3) Trabajar como `alex`
 
-Fase 7 queda cerrada con:
+```bash
+mkdir -p /home/alex/repos && cd /home/alex/repos
+git clone https://github.com/eugenioklimenok/VPS_INIT_PROYECTS_TEMPLATE_REPO.git
+cd VPS_INIT_PROYECTS_TEMPLATE_REPO
+chmod +x bin/*
+```
 
-- template `fullstack` materializado
-- stack base del proyecto definido con archivos reales
-- contrato de `new-project` cerrado
+### 4) Crear proyecto y validar
 
-Fase 8 queda cerrada con:
+```bash
+python3 ./bin/new-project soporte-app --base-path /home/alex/apps --domain localhost
+python3 ./bin/deploy-project /home/alex/apps/soporte-app --env dev --validate-only
+```
 
-- `new-project` implementado en Python
-- generacion automatica del proyecto desde `templates/fullstack`
-- validaciones de naming, rutas y placeholders cerradas
+### 5) Deploy real, auditoria y backup
 
-Fase 9 queda cerrada con:
+```bash
+python3 ./bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
+python3 ./bin/audit-project /home/alex/apps/soporte-app --env dev
+python3 ./bin/backup-project /home/alex/apps/soporte-app --env dev
+```
 
-- `deploy-project` implementado en Python
-- validacion de proyecto, envs y placeholders cerrada
-- deploy del stack y checks minimos de salud definidos
+## Notas operativas importantes
 
-Fase 10 queda cerrada con:
+### 1) `localhost` vs `127.0.0.1` en dev
 
-- `backup-project` implementado en Python
-- `audit-project` implementado en Python
-- smoke tests del flujo principal agregados
-- framework completo a nivel de implementacion local
+Para pruebas locales con Caddy/TLS, usar `--domain localhost` evita problemas de certificado al consultar HTTPS.
 
-Documentacion de usuario final agregada:
+Si usas `127.0.0.1`, podes ver redireccion `308` en HTTP y errores TLS al pegarle por IP al puerto HTTPS.
 
-- guia conceptual completa del framework
-- manual detallado de uso sobre Linux y VPS de laboratorio
-- quickstart operativo resumido
+### 2) Redeploy idempotente
 
-La siguiente etapa sera validacion de punta a punta en VPS real con Docker.
+`deploy-project` ya permite redeploy cuando los puertos publicados estan ocupados por el mismo stack del proyecto.
+Si los ocupa otro proceso, bloquea con mensaje claro.
 
-## Mapa documental
+### 3) Si interrumpis un deploy
 
-- `docs/00-FASE_1_BASE_DEL_REPO.md`
-- `docs/01-VISION_Y_OBJETIVOS.md`
-- `docs/02-ALCANCE_Y_PRINCIPIOS.md`
-- `docs/03-ARQUITECTURA_DEL_FRAMEWORK.md`
-- `docs/04-ESTANDAR_VPS.md`
-- `docs/05-SUITE_DE_COMANDOS.md`
-- `docs/06-TEMPLATE_DE_PROYECTO_FULLSTACK.md`
-- `docs/07-RUNBOOK_OPERATIVO.md`
-- `docs/08-PLAN_DE_IMPLEMENTACION.md`
-- `docs/09-CRITERIOS_DE_ACEPTACION_Y_RIESGOS.md`
-- `docs/10-CONTRATOS_BLOQUE_HOST.md`
-- `docs/11-CONTRATO_AUDIT_VPS.md`
-- `docs/12-CONTRATO_INIT_VPS.md`
-- `docs/13-CONTRATO_HARDEN_VPS.md`
-- `docs/14-FASE_2_CONTRATOS_BLOQUE_HOST.md`
-- `docs/15-INFRA_COMUN_BASH.md`
-- `docs/16-FASE_3_INFRA_COMUN_BASH.md`
-- `docs/17-AUDIT_VPS_IMPLEMENTACION.md`
-- `docs/18-FASE_4_AUDITORIA_HOST.md`
-- `docs/19-INIT_VPS_IMPLEMENTACION.md`
-- `docs/20-FASE_5_BOOTSTRAP_HOST.md`
-- `docs/21-HARDEN_VPS_IMPLEMENTACION.md`
-- `docs/22-FASE_6_HARDENING_HOST.md`
-- `docs/23-CONTRATO_NEW_PROJECT.md`
-- `docs/24-TEMPLATE_FULLSTACK_IMPLEMENTACION.md`
-- `docs/25-FASE_7_TEMPLATE_PROYECTO.md`
-- `docs/26-NEW_PROJECT_IMPLEMENTACION.md`
-- `docs/27-FASE_8_SCAFFOLDING_PROYECTO.md`
-- `docs/28-CONTRATO_DEPLOY_PROJECT.md`
-- `docs/29-DEPLOY_PROJECT_IMPLEMENTACION.md`
-- `docs/30-FASE_9_DEPLOY_PROYECTO.md`
-- `docs/31-CONTRATO_BACKUP_PROJECT.md`
-- `docs/32-CONTRATO_AUDIT_PROJECT.md`
-- `docs/33-OPERACION_PROYECTO_IMPLEMENTACION.md`
-- `docs/34-FASE_10_OPERACION_PROYECTO.md`
-- `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`
-- `docs/36-MANUAL_USO_PASO_A_PASO.md`
-- `docs/37-QUICKSTART.md`
+Si cortaste a mitad de proceso, limpia estado parcial y redeploy:
 
-## Resultado esperado
+```bash
+cd /home/alex/apps/soporte-app
+docker compose --env-file env/.env.dev -f docker-compose.yml -f compose.override.yml down -v --remove-orphans
+python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
+```
 
-Cuando esta linea de trabajo este implementada, deberia ser posible:
+## Separacion entre template y proyecto generado
 
-1. tomar un VPS Ubuntu nuevo
-2. dejarlo en un estado operativo estandar
-3. generar un proyecto full stack consistente
-4. desplegarlo sobre Docker con configuracion previsible
-5. auditar y respaldar el entorno de forma repetible
+Modelo recomendado:
 
-## Regla de trabajo
+- template del framework: `VPS_INIT_PROYECTS_TEMPLATE_REPO` (este repo)
+- proyecto real: `/home/alex/apps/soporte-app` (otro repo Git, remoto propio)
 
-No avanzar con codigo, scripts ni cambios estructurales fuera de esta carpeta nueva sin aprobacion explicita.
+No mezclar commits del proyecto real dentro del repo template.
 
-## Estructura creada en Fase 1
+## Estructura del repo
 
 ```text
 VPS_INIT_PROYECTS_TEMPLATE_REPO/
@@ -163,11 +138,25 @@ VPS_INIT_PROYECTS_TEMPLATE_REPO/
 |       |-- caddy/
 |       |-- env/
 |       |-- n8n/
-|       |   `-- data/
 |       |-- postgres/
-|       |   `-- data/
 |       `-- scripts/
 `-- tests/
     |-- fixtures/
     `-- smoke/
 ```
+
+## Documentacion completa
+
+Guia extendida y manuales:
+
+- `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`
+- `docs/36-MANUAL_USO_PASO_A_PASO.md`
+- `docs/37-QUICKSTART.md`
+
+Documentacion funcional por fases/contratos:
+
+- `docs/10-CONTRATOS_BLOQUE_HOST.md`
+- `docs/23-CONTRATO_NEW_PROJECT.md`
+- `docs/28-CONTRATO_DEPLOY_PROJECT.md`
+- `docs/31-CONTRATO_BACKUP_PROJECT.md`
+- `docs/32-CONTRATO_AUDIT_PROJECT.md`
