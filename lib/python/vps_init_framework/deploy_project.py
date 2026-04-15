@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import signal
 import subprocess
 import sys
@@ -126,15 +127,55 @@ def run_compose_up(config: DeployConfig) -> None:
 
 
 def preflight_host_ports(config: DeployConfig) -> None:
+    own_ports = get_project_running_published_ports(config)
     conflicts: list[str] = []
     for key, port in get_published_ports(config.env_values).items():
-        if is_tcp_port_in_use(port):
+        if is_tcp_port_in_use(port) and port not in own_ports:
             conflicts.append(f"{key}={port}")
     if conflicts:
         joined = ", ".join(conflicts)
         raise ProjectOpsError(
             f"puertos ocupados en el host antes del deploy: {joined}. Ajusta env/.env.{config.env_name} o libera esos puertos"
         )
+
+
+def get_project_running_published_ports(config: DeployConfig) -> set[int]:
+    try:
+        result = run_command(
+            compose_base_command(config.project_path, config.env_file, config.env_name)
+            + ["ps", "--format", "json"],
+            cwd=config.project_path,
+            error_prefix="no se pudo consultar estado de puertos del proyecto",
+        )
+    except ProjectOpsError:
+        return set()
+
+    raw = result.stdout.strip()
+    if not raw:
+        return set()
+
+    try:
+        entries = json.loads(raw)
+    except json.JSONDecodeError:
+        return set()
+
+    if not isinstance(entries, list):
+        return set()
+
+    ports: set[int] = set()
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        publishers = item.get("Publishers")
+        if not isinstance(publishers, list):
+            continue
+        for publisher in publishers:
+            if not isinstance(publisher, dict):
+                continue
+            published_port = publisher.get("PublishedPort")
+            if isinstance(published_port, int):
+                ports.add(published_port)
+    return ports
 
 
 def run_health_checks(config: DeployConfig) -> None:
