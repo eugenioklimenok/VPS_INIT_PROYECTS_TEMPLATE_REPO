@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import signal
 import subprocess
 import sys
@@ -154,12 +155,8 @@ def get_project_running_published_ports(config: DeployConfig) -> set[int]:
     if not raw:
         return set()
 
-    try:
-        entries = json.loads(raw)
-    except json.JSONDecodeError:
-        return set()
-
-    if not isinstance(entries, list):
+    entries = parse_compose_ps_json(raw)
+    if not entries:
         return set()
 
     ports: set[int] = set()
@@ -175,6 +172,41 @@ def get_project_running_published_ports(config: DeployConfig) -> set[int]:
             published_port = publisher.get("PublishedPort")
             if isinstance(published_port, int):
                 ports.add(published_port)
+        ports.update(parse_published_ports_from_ports_field(item.get("Ports")))
+    return ports
+
+
+def parse_compose_ps_json(raw: str) -> list[dict]:
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = None
+
+    if isinstance(parsed, list):
+        return [item for item in parsed if isinstance(item, dict)]
+    if isinstance(parsed, dict):
+        return [parsed]
+
+    entries: list[dict] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            entries.append(item)
+    return entries
+
+
+def parse_published_ports_from_ports_field(value: object) -> set[int]:
+    if not isinstance(value, str):
+        return set()
+    ports: set[int] = set()
+    for match in re.findall(r"(?:(?:\d{1,3}\.){3}\d{1,3}|\[::\]|::):(\d{2,5})->", value):
+        ports.add(int(match))
     return ports
 
 

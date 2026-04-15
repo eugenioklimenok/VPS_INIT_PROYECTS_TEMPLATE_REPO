@@ -8,7 +8,12 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "lib" / "python"))
 
-from vps_init_framework.deploy_project import DeployConfig, preflight_host_ports
+from vps_init_framework.deploy_project import (
+    DeployConfig,
+    parse_compose_ps_json,
+    parse_published_ports_from_ports_field,
+    preflight_host_ports,
+)
 from vps_init_framework.project_ops import ProjectOpsError
 
 
@@ -66,6 +71,20 @@ class DeployProjectPreflightPortsTest(unittest.TestCase):
         ):
             with self.assertRaises(ProjectOpsError):
                 preflight_host_ports(config)
+
+    def test_parse_compose_ps_json_accepts_ndjson(self) -> None:
+        raw = "\n".join(
+            [
+                '{"Name":"soporte-app_api","Publishers":[{"PublishedPort":18000}]}',
+                '{"Name":"soporte-app_caddy","Ports":"0.0.0.0:18080->80/tcp, [::]:18443->443/tcp"}',
+            ]
+        )
+        entries = parse_compose_ps_json(raw)
+        self.assertEqual(len(entries), 2)
+
+    def test_parse_published_ports_from_ports_field_extracts_host_ports(self) -> None:
+        value = "0.0.0.0:18080->80/tcp, [::]:18443->443/tcp, :::15432->5432/tcp"
+        self.assertEqual(parse_published_ports_from_ports_field(value), {18080, 18443, 15432})
 
 
 if __name__ == "__main__":
