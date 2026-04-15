@@ -92,6 +92,11 @@ TRANSIENT_HTTP_EXCEPTIONS = (
 )
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
 @dataclass
 class ProjectValidation:
     project_path: Path
@@ -275,12 +280,13 @@ def ensure_http_status(url: str, timeout: int, accepted_statuses: set[int], labe
     deadline = time.monotonic() + max(timeout, 1)
     last_status: int | None = None
     last_reason: str | None = None
+    opener = urllib.request.build_opener(_NoRedirectHandler())
 
     while time.monotonic() < deadline:
         remaining = max(deadline - time.monotonic(), 0.2)
         request = urllib.request.Request(url, method="GET")
         try:
-            with urllib.request.urlopen(request, timeout=min(remaining, 2.0)) as response:
+            with opener.open(request, timeout=min(remaining, 2.0)) as response:
                 status = response.status
         except urllib.error.HTTPError as exc:
             status = exc.code
