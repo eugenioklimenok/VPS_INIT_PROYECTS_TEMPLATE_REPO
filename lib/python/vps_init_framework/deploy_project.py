@@ -218,12 +218,13 @@ def run_health_checks(config: DeployConfig) -> None:
         raise ProjectOpsError(f"servicios no running despues del deploy: {', '.join(missing)}")
 
     caddy_http_port = int(config.env_values["CADDY_HTTP_PORT"])
+    api_port = int(config.env_values["API_PORT"])
     caddy_root = f"http://127.0.0.1:{caddy_http_port}/"
-    caddy_health = f"http://127.0.0.1:{caddy_http_port}/health"
+    api_health = f"http://127.0.0.1:{api_port}/health"
     n8n_url = f"http://127.0.0.1:{caddy_http_port}/n8n/"
 
     ensure_http_status(caddy_root, config.timeout, HTTP_OK_STATUSES, "root del stack")
-    ensure_http_status(caddy_health, config.timeout, {200}, "health de la API")
+    ensure_http_status(api_health, config.timeout, {200}, "health de la API")
     ensure_http_status(n8n_url, config.timeout, HTTP_OK_STATUSES, "ruta /n8n/")
 
 

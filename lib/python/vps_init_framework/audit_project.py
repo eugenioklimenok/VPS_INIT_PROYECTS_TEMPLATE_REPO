@@ -158,11 +158,12 @@ def add_runtime_findings(findings: list[dict[str, str]], config: AuditConfig, en
     else:
         findings.append({"severity": "ok", "check": "containers", "message": "todos los servicios estan running"})
 
-    port = int(env_values["CADDY_HTTP_PORT"])
+    caddy_port = int(env_values["CADDY_HTTP_PORT"])
+    api_port = int(env_values["API_PORT"])
     checks = [
-        ("root", f"http://127.0.0.1:{port}/", {200}),
-        ("health", f"http://127.0.0.1:{port}/health", {200}),
-        ("n8n", f"http://127.0.0.1:{port}/n8n/", HTTP_OK_STATUSES),
+        ("root", f"http://127.0.0.1:{caddy_port}/", HTTP_OK_STATUSES),
+        ("health", f"http://127.0.0.1:{api_port}/health", {200}),
+        ("n8n", f"http://127.0.0.1:{caddy_port}/n8n/", HTTP_OK_STATUSES),
     ]
     for label, url, accepted in checks:
         try:
