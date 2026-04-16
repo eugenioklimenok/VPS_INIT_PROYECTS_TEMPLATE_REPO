@@ -26,6 +26,18 @@ make up
 make ps
 ```
 
+## Acceso dev/lab (HTTP)
+
+- El template dev usa Caddy en HTTP puro (sin redirect forzado a HTTPS).
+- URLs esperadas en laboratorio:
+  - `http://<ip-o-dominio>:<CADDY_HTTP_PORT>/`
+  - `http://<ip-o-dominio>:<CADDY_HTTP_PORT>/n8n/`
+- En `env/.env.dev`:
+  - `N8N_PROTOCOL=http`
+  - `N8N_SECURE_COOKIE=false`
+
+Para producción HTTPS, configurar dominio real, certificados y `N8N_SECURE_COOKIE=true` (ya viene así en `.env.prod`).
+
 ## Backup
 
 `scripts/backup.sh <env>` crea:
@@ -38,11 +50,11 @@ make ps
 
 ```bash
 # restore completo
-./scripts/restore.sh dev backups/20260415_0130 all
+./scripts/restore.sh dev backups/20260415_0130 all --clean
 
 # restore solo app
-./scripts/restore.sh dev backups/20260415_0130/app_db.sql app
+./scripts/restore.sh dev backups/20260415_0130 app --clean
 
 # restore solo n8n
-./scripts/restore.sh dev backups/20260415_0130/n8n_db.sql n8n
+./scripts/restore.sh dev backups/20260415_0130 n8n --clean
 ```

@@ -1,4 +1,4 @@
-{$DOMAIN_NAME:localhost} {
+http://{$DOMAIN_NAME:localhost} {
 	encode gzip
 
 	handle_path /n8n/* {

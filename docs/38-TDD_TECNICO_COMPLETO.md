@@ -21,6 +21,9 @@ Regla obligatoria:
 - `init-vps`
 - `harden-vps`
 
+Nota de ejecucion:
+- `audit-vps` funciona tanto como ejecutable (`./bin/audit-vps`) como invocado por Python (`python3 ./bin/audit-vps`).
+
 ### Bloque proyecto
 
 - `new-project`
@@ -74,12 +77,17 @@ Creacion inicial automatica:
 - `N8N_BASE_URL`
 - `N8N_BASIC_AUTH_USER`
 - `N8N_BASIC_AUTH_PASSWORD`
+- `N8N_SECURE_COOKIE`
 - `SECRET_KEY`
 
 Politica:
 
 - se versiona: `env/.env.example`
 - no se versiona: `env/.env.dev`, `env/.env.prod`
+- regla de dominio dev: `new-project --domain` se materializa tambien en `.env.dev`
+- regla cookie n8n:
+  - dev/lab HTTP: `N8N_SECURE_COOKIE=false`
+  - prod/HTTPS: `N8N_SECURE_COOKIE=true`
 
 ## 6. Contrato de comandos (resumen)
 
@@ -110,6 +118,7 @@ Post-deploy:
 - `db` responde ready (`pg_isready`)
 - APP_DB y N8N_DB existen en PostgreSQL
 - checks HTTP de root, health API y `/n8n/`
+- en dev/lab: root y `/n8n/` por HTTP sin redirect HTTPS forzado desde Caddy
 
 ### `audit-project`
 
@@ -136,11 +145,15 @@ Genera por corrida:
 
 - restore total desde carpeta de corrida (`all`)
 - restore individual de `app` o `n8n`
+- modo limpio recomendado (`--clean`) para recovery reproducible:
+  - termina conexiones activas
+  - drop/recreate DB target con owner correcto
+  - restaura dump con `ON_ERROR_STOP=1`
 
 Uso:
 
 ```bash
-./scripts/restore.sh <env> <backup-file-or-dir> [all|app|n8n]
+./scripts/restore.sh <env> <backup-file-or-dir> [all|app|n8n] [--clean]
 ```
 
 ## 8. Estructura esperada del proyecto

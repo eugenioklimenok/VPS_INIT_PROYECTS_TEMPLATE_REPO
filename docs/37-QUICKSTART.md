@@ -61,6 +61,12 @@ sudo ./bin/audit-vps --expected-user alex --output "$REPORT_DIR/01-audit-before.
 cat "$REPORT_DIR/01-audit-before.txt"
 ```
 
+Alternativa equivalente (wrapper Python):
+
+```bash
+sudo python3 ./bin/audit-vps --expected-user alex --output "$REPORT_DIR/01-audit-before.txt"
+```
+
 ## Paso 5: inicializar host
 
 ```bash
@@ -131,6 +137,12 @@ Verificar env:
 cat "$PWD/reports/manual_debug/smoke-app/env/.env.dev"
 ```
 
+Debe verse consistente con `--domain` y modo dev/lab:
+
+- `DOMAIN_NAME=127.0.0.1`
+- `N8N_BASE_URL=http://127.0.0.1:18080/n8n/`
+- `N8N_SECURE_COOKIE=false`
+
 Puertos default esperados:
 
 - `API_PORT=18000`
@@ -156,6 +168,8 @@ curl http://127.0.0.1:18080/health
 curl -I http://127.0.0.1:18080/n8n/
 ```
 
+Nota: en dev el template usa Caddy HTTP sin redirect HTTPS forzado.
+
 ## Paso 12: auditar y respaldar
 
 ```bash
@@ -163,6 +177,9 @@ python3 "$FRAMEWORK_DIR/bin/audit-project" "$FRAMEWORK_DIR/reports/manual_debug/
 python3 "$FRAMEWORK_DIR/bin/backup-project" "$FRAMEWORK_DIR/reports/manual_debug/smoke-app" --env dev
 python3 "$FRAMEWORK_DIR/bin/audit-project" "$FRAMEWORK_DIR/reports/manual_debug/smoke-app" --env dev
 ls -lah "$FRAMEWORK_DIR/reports/manual_debug/smoke-app/backups"
+
+# restore limpio recomendado (evita "relation already exists")
+./scripts/restore.sh dev backups/<timestamp> all --clean
 ```
 
 ## Si algo falla

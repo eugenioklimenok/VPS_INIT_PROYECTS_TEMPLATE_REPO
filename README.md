@@ -28,6 +28,7 @@ Baseline v1.1:
   - `POSTGRES_ADMIN_USER`, `POSTGRES_ADMIN_PASSWORD`
   - `APP_DB_NAME`, `APP_DB_USER`, `APP_DB_PASSWORD`
   - `N8N_DB_NAME`, `N8N_DB_USER`, `N8N_DB_PASSWORD`
+  - `N8N_SECURE_COOKIE` (`false` en dev/lab HTTP, `true` en prod HTTPS)
 
 ## Runbook operativo real (primer deploy)
 
@@ -54,6 +55,12 @@ chmod +x bin/*
 ```bash
 ./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
 cat /tmp/audit-before.txt
+```
+
+Tambien soportado:
+
+```bash
+python3 ./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
 ```
 
 ### 4) Inicializar host
@@ -85,8 +92,12 @@ chmod +x bin/*
 ### 7) Generar proyecto
 
 ```bash
-python3 ./bin/new-project soporte-app --base-path /home/alex/apps --domain localhost
+python3 ./bin/new-project soporte-app --base-path /home/alex/apps --domain 192.168.1.38
 ```
+
+Regla de dominio en dev:
+- `new-project --domain` ahora se respeta en `.env.dev`, `.env.example` y `.env.prod`.
+- El acceso dev/lab queda coherente con ese valor.
 
 ### 8) Revisar envs generados
 
@@ -108,6 +119,15 @@ python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /hom
 ```bash
 python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
 ```
+
+Acceso dev/lab esperado (HTTP puro):
+- `http://<ip-o-domain>:<CADDY_HTTP_PORT>/`
+- `http://<ip-o-domain>:<CADDY_HTTP_PORT>/n8n/`
+
+Notas:
+- En dev, Caddy no fuerza redirect HTTPS.
+- n8n usa `N8N_SECURE_COOKIE=false`.
+- En prod/HTTPS, usar `N8N_SECURE_COOKIE=true`.
 
 ### 11) Auditar proyecto y validar runtime
 
@@ -136,14 +156,14 @@ Esperado por corrida:
 Desde proyecto generado:
 
 ```bash
-# restore completo (app + n8n) desde carpeta de corrida
-./scripts/restore.sh dev backups/20260415_0130 all
+# restore completo recomendado (limpia y recrea DBs antes de restaurar)
+./scripts/restore.sh dev backups/20260415_0130 all --clean
 
 # restore solo app
-./scripts/restore.sh dev backups/20260415_0130/app_db.sql app
+./scripts/restore.sh dev backups/20260415_0130 app --clean
 
 # restore solo n8n
-./scripts/restore.sh dev backups/20260415_0130/n8n_db.sql n8n
+./scripts/restore.sh dev backups/20260415_0130 n8n --clean
 ```
 
 ## Flujo Git recomendado (sin mezclar framework y proyecto)
