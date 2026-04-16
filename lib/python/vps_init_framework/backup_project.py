@@ -95,17 +95,22 @@ def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: 
     created_files: list[Path] = []
 
     if not config.skip_db_dump:
-        db_backup = output_dir / f"{project_name}_pg_{timestamp}.sql.gz"
-        result = run_command(
-            compose_base_command(config.project_path, config.env_file, config.env_name)
-            + ["exec", "-T", "db", "pg_dump", "-U", env_values["POSTGRES_USER"], "-d", env_values["POSTGRES_DB"]],
-            cwd=config.project_path,
-            error_prefix="fallo dump PostgreSQL",
-            text=False,
+        dumps = (
+            ("app", env_values["APP_DB_USER"], env_values["APP_DB_NAME"]),
+            ("n8n", env_values["N8N_DB_USER"], env_values["N8N_DB_NAME"]),
         )
-        with gzip.open(db_backup, "wb") as handle:
-            handle.write(result.stdout)
-        created_files.append(db_backup)
+        for label, db_user, db_name in dumps:
+            db_backup = output_dir / f"{project_name}_{label}_pg_{timestamp}.sql.gz"
+            result = run_command(
+                compose_base_command(config.project_path, config.env_file, config.env_name)
+                + ["exec", "-T", "db", "pg_dump", "-U", db_user, "-d", db_name],
+                cwd=config.project_path,
+                error_prefix=f"fallo dump PostgreSQL ({label})",
+                text=False,
+            )
+            with gzip.open(db_backup, "wb") as handle:
+                handle.write(result.stdout)
+            created_files.append(db_backup)
 
     if not config.skip_config_archive:
         config_backup = output_dir / f"{project_name}_config_{timestamp}.tar.gz"
@@ -128,6 +133,10 @@ def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: 
                 "project_name": project_name,
                 "env": config.env_name,
                 "created_at_utc": timestamp,
+                "databases": {
+                    "app": {"name": env_values["APP_DB_NAME"], "user": env_values["APP_DB_USER"]},
+                    "n8n": {"name": env_values["N8N_DB_NAME"], "user": env_values["N8N_DB_USER"]},
+                },
                 "files": [str(path.name) for path in created_files],
             },
             indent=2,

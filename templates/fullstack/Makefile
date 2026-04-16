@@ -1,5 +1,7 @@
 ENV ?= dev
 ENV_FILE := env/.env.$(ENV)
+BACKUP ?=
+TARGET ?= app
 
 up:
 	docker compose --env-file $(ENV_FILE) up -d --build
@@ -21,4 +23,4 @@ backup:
 	./scripts/backup.sh $(ENV)
 
 restore:
-	./scripts/restore.sh $(ENV)
+	./scripts/restore.sh $(ENV) $(BACKUP) $(TARGET)

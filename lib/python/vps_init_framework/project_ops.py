@@ -27,6 +27,7 @@ TEXT_FILE_SUFFIXES = {
     ".toml",
     ".ini",
     ".cfg",
+    ".sql",
     ".gitignore",
 }
 REQUIRED_FILES = (
@@ -37,6 +38,7 @@ REQUIRED_FILES = (
     "api/requirements.txt",
     "api/app/main.py",
     "caddy/Caddyfile",
+    "postgres/init/01-bootstrap-multi-db.sql",
     "env/.env.example",
     "env/.env.dev",
     "env/.env.prod",
@@ -53,6 +55,7 @@ REQUIRED_DIRS = (
     "env",
     "n8n",
     "postgres",
+    "postgres/init",
     "scripts",
 )
 REQUIRED_ENV_KEYS = (
@@ -64,9 +67,14 @@ REQUIRED_ENV_KEYS = (
     "N8N_PORT",
     "CADDY_HTTP_PORT",
     "CADDY_HTTPS_PORT",
-    "POSTGRES_DB",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
+    "POSTGRES_ADMIN_USER",
+    "POSTGRES_ADMIN_PASSWORD",
+    "APP_DB_NAME",
+    "APP_DB_USER",
+    "APP_DB_PASSWORD",
+    "N8N_DB_NAME",
+    "N8N_DB_USER",
+    "N8N_DB_PASSWORD",
     "N8N_PROTOCOL",
     "N8N_BASE_URL",
     "N8N_BASIC_AUTH_USER",

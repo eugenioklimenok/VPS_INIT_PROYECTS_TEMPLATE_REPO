@@ -1,163 +1,96 @@
 # VPS_INIT_PROYECTS_TEMPLATE_REPO
 
-Framework para estandarizar todo el ciclo inicial de un proyecto en VPS Ubuntu:
+Framework operativo para Ubuntu VPS con dos bloques:
 
-- preparar host (`audit-vps`, `init-vps`, `harden-vps`)
-- crear proyecto base fullstack (`new-project`)
-- desplegar, auditar y respaldar (`deploy-project`, `audit-project`, `backup-project`)
+- Host: `audit-vps`, `init-vps`, `harden-vps`
+- Proyecto: `new-project`, `deploy-project`, `audit-project`, `backup-project`
 
-Este repo es una plantilla operativa. Los proyectos generados (`/home/alex/apps/<proyecto>`) viven separados y pueden tener su propio Git independiente.
+Baseline oficial v1.1:
 
-## Que resuelve
+- Stack: FastAPI + PostgreSQL + n8n + Caddy (Docker Compose)
+- n8n usa PostgreSQL obligatoriamente (no SQLite)
+- Un motor PostgreSQL por proyecto con 2 DB lógicas:
+  - `APP_DB_*`
+  - `N8N_DB_*`
 
-Problemas que ataca este framework:
+## Prerrequisitos
 
-- VPS nuevos configurados "a mano" de forma inconsistente
-- tiempo perdido recreando estructura base de proyectos
-- deploys no repetibles
-- falta de auditoria y backup estandar
+- Ubuntu 24.04 LTS (recomendado)
+- Python 3.12+
+- Docker Engine + Docker Compose plugin
+- Git
 
-Resultado esperado:
-
-1. host Ubuntu con baseline consistente
-2. proyecto generado con estructura y envs correctos
-3. deploy reproducible sobre Docker Compose
-4. auditoria automatica de host/proyecto
-5. backups versionados con timestamp
-
-## Comandos del framework
-
-Bloque host:
-
-- `./bin/audit-vps`
-- `./bin/init-vps`
-- `./bin/harden-vps`
-
-Bloque proyecto:
-
-- `python3 ./bin/new-project <nombre>`
-- `python3 ./bin/deploy-project <ruta_proyecto> --env dev|prod`
-- `python3 ./bin/audit-project <ruta_proyecto> --env dev|prod`
-- `python3 ./bin/backup-project <ruta_proyecto> --env dev|prod`
-
-## Inicio rapido (flujo recomendado)
-
-### 1) En VPS limpio, clonar template
+## Flujo rápido (framework)
 
 ```bash
-sudo -i
-apt update -y
-apt install -y git
-mkdir -p /opt/work && cd /opt/work
 git clone https://github.com/eugenioklimenok/VPS_INIT_PROYECTS_TEMPLATE_REPO.git
 cd VPS_INIT_PROYECTS_TEMPLATE_REPO
 chmod +x bin/*
+python3 -m unittest tests/smoke/test_framework_smoke.py
 ```
 
-### 2) Auditar host inicial y bootstrap
+## Flujo host (VPS limpio)
 
 ```bash
-./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
-./bin/init-vps --user alex --timezone America/Argentina/Buenos_Aires --with-password-auth
-passwd alex
-su - alex
+sudo ./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
+sudo ./bin/init-vps --user alex --timezone America/Argentina/Buenos_Aires --with-password-auth
+sudo passwd alex
+sudo ./bin/harden-vps --user alex
+sudo ./bin/audit-vps --expected-user alex --output /tmp/audit-after.txt
 ```
 
-### 3) Trabajar como `alex`
-
-```bash
-mkdir -p /home/alex/repos && cd /home/alex/repos
-git clone https://github.com/eugenioklimenok/VPS_INIT_PROYECTS_TEMPLATE_REPO.git
-cd VPS_INIT_PROYECTS_TEMPLATE_REPO
-chmod +x bin/*
-```
-
-### 4) Crear proyecto y validar
+## Flujo proyecto
 
 ```bash
 python3 ./bin/new-project soporte-app --base-path /home/alex/apps --domain localhost
 python3 ./bin/deploy-project /home/alex/apps/soporte-app --env dev --validate-only
-```
-
-### 5) Deploy real, auditoria y backup
-
-```bash
 python3 ./bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
 python3 ./bin/audit-project /home/alex/apps/soporte-app --env dev
 python3 ./bin/backup-project /home/alex/apps/soporte-app --env dev
 ```
 
-## Notas operativas importantes
+## Política `.env`
 
-### 1) `localhost` vs `127.0.0.1` en dev
+- Se versiona: `env/.env.example`
+- No se versiona: `env/.env.dev`, `env/.env.prod` (secretos reales)
+- Inicialización recomendada:
+  1. `cp env/.env.example env/.env.dev`
+  2. `cp env/.env.example env/.env.prod`
+  3. ajustar credenciales y dominio
+- Variables DB explícitas:
+  - Admin Postgres: `POSTGRES_ADMIN_USER`, `POSTGRES_ADMIN_PASSWORD`
+  - DB App: `APP_DB_NAME`, `APP_DB_USER`, `APP_DB_PASSWORD`
+  - DB n8n: `N8N_DB_NAME`, `N8N_DB_USER`, `N8N_DB_PASSWORD`
 
-Para pruebas locales con Caddy/TLS, usar `--domain localhost` evita problemas de certificado al consultar HTTPS.
+## Flujo Git recomendado (sin mezcla)
 
-Si usas `127.0.0.1`, podes ver redireccion `308` en HTTP y errores TLS al pegarle por IP al puerto HTTPS.
+1. Repo framework (este repo): evoluciona comandos, template y docs.
+2. Proyecto generado: repo Git propio e independiente.
 
-### 2) Redeploy idempotente
-
-`deploy-project` ya permite redeploy cuando los puertos publicados estan ocupados por el mismo stack del proyecto.
-Si los ocupa otro proceso, bloquea con mensaje claro.
-
-### 3) Si interrumpis un deploy
-
-Si cortaste a mitad de proceso, limpia estado parcial y redeploy:
+Nacimiento de repo nuevo para proyecto generado (`/home/alex/apps/soporte-app`):
 
 ```bash
 cd /home/alex/apps/soporte-app
-docker compose --env-file env/.env.dev -f docker-compose.yml -f compose.override.yml down -v --remove-orphans
-python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
+rm -rf .git
+git init
+git add -A
+git commit -m "Initial scaffold from VPS_INIT_PROYECTS_TEMPLATE_REPO"
+git branch -M main
+git remote add origin <URL_REPO_PROYECTO>
+git push -u origin main
 ```
 
-## Separacion entre template y proyecto generado
+## Backup del proyecto
 
-Modelo recomendado:
+`backup-project` crea:
 
-- template del framework: `VPS_INIT_PROYECTS_TEMPLATE_REPO` (este repo)
-- proyecto real: `/home/alex/apps/soporte-app` (otro repo Git, remoto propio)
+- dump comprimido DB app: `*_app_pg_<timestamp>.sql.gz`
+- dump comprimido DB n8n: `*_n8n_pg_<timestamp>.sql.gz`
+- tar.gz de configuración (`env`, compose, caddy, makefile)
+- manifest JSON con metadata de artefactos y DBs
 
-No mezclar commits del proyecto real dentro del repo template.
+## Documentación principal
 
-## Estructura del repo
-
-```text
-VPS_INIT_PROYECTS_TEMPLATE_REPO/
-|-- README.md
-|-- bin/
-|-- config/
-|-- docs/
-|-- lib/
-|   |-- bash/
-|   `-- python/
-|-- reports/
-|-- templates/
-|   `-- fullstack/
-|       |-- api/
-|       |   `-- app/
-|       |-- caddy/
-|       |-- env/
-|       |-- n8n/
-|       |-- postgres/
-|       `-- scripts/
-`-- tests/
-    |-- fixtures/
-    `-- smoke/
-```
-
-## Documentacion completa
-
-Guia extendida y manuales:
-
-- `docs/38-TDD_TECNICO_COMPLETO.md`
-- `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`
-- `docs/36-MANUAL_USO_PASO_A_PASO.md`
-- `docs/37-QUICKSTART.md`
-
-Documentacion funcional por fases/contratos:
-
-- `docs/10-CONTRATOS_BLOQUE_HOST.md`
-- `docs/23-CONTRATO_NEW_PROJECT.md`
-- `docs/28-CONTRATO_DEPLOY_PROJECT.md`
-- `docs/31-CONTRATO_BACKUP_PROJECT.md`
-- `docs/32-CONTRATO_AUDIT_PROJECT.md`
+- TDD técnico actual: `docs/38-TDD_TECNICO_COMPLETO.md`
+- Quickstart: `docs/37-QUICKSTART.md`
+- Manual usuario final: `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`

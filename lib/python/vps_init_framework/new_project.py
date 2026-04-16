@@ -11,6 +11,7 @@ import re
 
 
 PROJECT_NAME_RE = re.compile(r"^[a-z0-9-]+$")
+DB_IDENTIFIER_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 TEXT_FILE_SUFFIXES = {
     "",
     ".env",
@@ -25,6 +26,7 @@ TEXT_FILE_SUFFIXES = {
     ".toml",
     ".ini",
     ".cfg",
+    ".sql",
     ".gitignore",
 }
 TEMPLATE_FILE_RENAMES = {
@@ -44,9 +46,14 @@ class NewProjectConfig:
     n8n_port: int
     caddy_http_port: int
     caddy_https_port: int
-    postgres_db: str
-    postgres_user: str
-    postgres_password: str
+    postgres_admin_user: str
+    postgres_admin_password: str
+    app_db_name: str
+    app_db_user: str
+    app_db_password: str
+    n8n_db_name: str
+    n8n_db_user: str
+    n8n_db_password: str
     n8n_basic_auth_user: str
     n8n_basic_auth_password: str
     secret_key: str
@@ -99,9 +106,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--n8n-port", type=int, default=15678, help="Puerto host para n8n.")
     parser.add_argument("--caddy-http-port", type=int, default=18080, help="Puerto HTTP para Caddy.")
     parser.add_argument("--caddy-https-port", type=int, default=18443, help="Puerto HTTPS para Caddy.")
-    parser.add_argument("--postgres-db", help="Nombre de la base PostgreSQL.")
-    parser.add_argument("--postgres-user", help="Usuario PostgreSQL.")
-    parser.add_argument("--postgres-password", help="Password PostgreSQL inicial.")
+    parser.add_argument("--db-admin-user", help="Usuario admin PostgreSQL del stack.")
+    parser.add_argument("--db-admin-password", help="Password admin PostgreSQL del stack.")
+    parser.add_argument("--app-db-name", help="Nombre de la base de datos de la app.")
+    parser.add_argument("--app-db-user", help="Usuario de la base de datos de la app.")
+    parser.add_argument("--app-db-password", help="Password del usuario de la base de datos de la app.")
+    parser.add_argument("--n8n-db-name", help="Nombre de la base de datos de n8n.")
+    parser.add_argument("--n8n-db-user", help="Usuario de la base de datos de n8n.")
+    parser.add_argument("--n8n-db-password", help="Password del usuario de la base de datos de n8n.")
+    parser.add_argument("--postgres-db", help="Alias legacy de --app-db-name.")
+    parser.add_argument("--postgres-user", help="Alias legacy de --app-db-user.")
+    parser.add_argument("--postgres-password", help="Alias legacy de --app-db-password.")
     parser.add_argument("--n8n-user", default="admin", help="Usuario inicial para Basic Auth de n8n.")
     parser.add_argument("--n8n-password", help="Password inicial para Basic Auth de n8n.")
     parser.add_argument("--secret-key", help="Secret key inicial para la API.")
@@ -146,9 +161,23 @@ def build_config(args: argparse.Namespace, repo_root: Path, defaults: dict[str, 
     if output_path.exists():
         raise GenerationError(f"la ruta destino ya existe: {output_path}")
 
-    postgres_safe = args.project_name.replace("-", "_")
-    postgres_db = args.postgres_db or postgres_safe
-    postgres_user = args.postgres_user or postgres_safe
+    db_safe = args.project_name.replace("-", "_")
+    app_db_name = args.app_db_name or args.postgres_db or db_safe
+    app_db_user = args.app_db_user or args.postgres_user or f"{db_safe}_app"
+    app_db_password = args.app_db_password or args.postgres_password or generate_secret(24)
+    n8n_db_name = args.n8n_db_name or f"{db_safe}_n8n"
+    n8n_db_user = args.n8n_db_user or f"{db_safe}_n8n"
+    n8n_db_password = args.n8n_db_password or generate_secret(24)
+    postgres_admin_user = args.db_admin_user or f"{db_safe}_admin"
+    postgres_admin_password = args.db_admin_password or generate_secret(24)
+
+    validate_db_identifier(app_db_name, "app_db_name")
+    validate_db_identifier(app_db_user, "app_db_user")
+    validate_db_identifier(n8n_db_name, "n8n_db_name")
+    validate_db_identifier(n8n_db_user, "n8n_db_user")
+    validate_db_identifier(postgres_admin_user, "db_admin_user")
+    if app_db_name == n8n_db_name:
+        raise UsageError("app_db_name y n8n_db_name deben ser distintos")
 
     return NewProjectConfig(
         project_name=args.project_name,
@@ -158,9 +187,14 @@ def build_config(args: argparse.Namespace, repo_root: Path, defaults: dict[str, 
         n8n_port=args.n8n_port,
         caddy_http_port=args.caddy_http_port,
         caddy_https_port=args.caddy_https_port,
-        postgres_db=postgres_db,
-        postgres_user=postgres_user,
-        postgres_password=args.postgres_password or generate_secret(24),
+        postgres_admin_user=postgres_admin_user,
+        postgres_admin_password=postgres_admin_password,
+        app_db_name=app_db_name,
+        app_db_user=app_db_user,
+        app_db_password=app_db_password,
+        n8n_db_name=n8n_db_name,
+        n8n_db_user=n8n_db_user,
+        n8n_db_password=n8n_db_password,
         n8n_basic_auth_user=args.n8n_user,
         n8n_basic_auth_password=args.n8n_password or generate_secret(18),
         secret_key=args.secret_key or generate_secret(32),
@@ -182,6 +216,11 @@ def validate_project_name(project_name: str) -> None:
 def validate_domain(domain_name: str) -> None:
     if not domain_name or any(char.isspace() for char in domain_name):
         raise UsageError("domain no puede ser vacio ni contener espacios")
+
+
+def validate_db_identifier(value: str, field_name: str) -> None:
+    if not DB_IDENTIFIER_RE.fullmatch(value):
+        raise UsageError(f"{field_name} debe usar solo a-z, 0-9 y '_' y comenzar con letra o '_'")
 
 
 def validate_ports(ports: dict[str, int]) -> None:
@@ -223,9 +262,14 @@ def build_placeholder_map(config: NewProjectConfig) -> dict[str, str]:
         "__N8N_PORT__": str(config.n8n_port),
         "__CADDY_HTTP_PORT__": str(config.caddy_http_port),
         "__CADDY_HTTPS_PORT__": str(config.caddy_https_port),
-        "__POSTGRES_DB__": config.postgres_db,
-        "__POSTGRES_USER__": config.postgres_user,
-        "__POSTGRES_PASSWORD__": config.postgres_password,
+        "__POSTGRES_ADMIN_USER__": config.postgres_admin_user,
+        "__POSTGRES_ADMIN_PASSWORD__": config.postgres_admin_password,
+        "__APP_DB_NAME__": config.app_db_name,
+        "__APP_DB_USER__": config.app_db_user,
+        "__APP_DB_PASSWORD__": config.app_db_password,
+        "__N8N_DB_NAME__": config.n8n_db_name,
+        "__N8N_DB_USER__": config.n8n_db_user,
+        "__N8N_DB_PASSWORD__": config.n8n_db_password,
         "__N8N_BASIC_AUTH_USER__": config.n8n_basic_auth_user,
         "__N8N_BASIC_AUTH_PASSWORD__": config.n8n_basic_auth_password,
         "__SECRET_KEY__": config.secret_key,
@@ -296,8 +340,11 @@ def print_summary(config: NewProjectConfig) -> None:
     print(f"- N8N_PORT={config.n8n_port}")
     print(f"- CADDY_HTTP_PORT={config.caddy_http_port}")
     print(f"- CADDY_HTTPS_PORT={config.caddy_https_port}")
-    print(f"- POSTGRES_DB={config.postgres_db}")
-    print(f"- POSTGRES_USER={config.postgres_user}")
+    print(f"- POSTGRES_ADMIN_USER={config.postgres_admin_user}")
+    print(f"- APP_DB_NAME={config.app_db_name}")
+    print(f"- APP_DB_USER={config.app_db_user}")
+    print(f"- N8N_DB_NAME={config.n8n_db_name}")
+    print(f"- N8N_DB_USER={config.n8n_db_user}")
     print(f"- N8N_BASIC_AUTH_USER={config.n8n_basic_auth_user}")
     print("Proximos pasos:")
     print("1. Revisar env/.env.dev y env/.env.prod")

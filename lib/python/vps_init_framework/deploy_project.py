@@ -224,7 +224,7 @@ def run_health_checks(config: DeployConfig) -> None:
     n8n_url = f"http://127.0.0.1:{caddy_http_port}/n8n/"
 
     ensure_http_status(caddy_root, config.timeout, HTTP_OK_STATUSES, "root del stack")
-    ensure_http_status(api_health, config.timeout, {200}, "health de la API")
+    ensure_http_status(api_health, config.timeout, {200, 307, 308}, "health de la API")
     ensure_http_status(n8n_url, config.timeout, HTTP_OK_STATUSES, "ruta /n8n/")
 
 

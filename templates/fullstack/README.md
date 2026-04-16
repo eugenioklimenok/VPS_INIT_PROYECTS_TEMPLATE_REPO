@@ -38,9 +38,14 @@ Placeholders principales:
 - `__N8N_PORT__`
 - `__CADDY_HTTP_PORT__`
 - `__CADDY_HTTPS_PORT__`
-- `__POSTGRES_DB__`
-- `__POSTGRES_USER__`
-- `__POSTGRES_PASSWORD__`
+- `__POSTGRES_ADMIN_USER__`
+- `__POSTGRES_ADMIN_PASSWORD__`
+- `__APP_DB_NAME__`
+- `__APP_DB_USER__`
+- `__APP_DB_PASSWORD__`
+- `__N8N_DB_NAME__`
+- `__N8N_DB_USER__`
+- `__N8N_DB_PASSWORD__`
 - `__N8N_BASIC_AUTH_USER__`
 - `__N8N_BASIC_AUTH_PASSWORD__`
 - `__SECRET_KEY__`
@@ -59,6 +64,7 @@ Placeholders principales:
 - `scripts/logs.sh`
 - `scripts/backup.sh`
 - `scripts/restore.sh`
+- `postgres/init/01-bootstrap-multi-db.sql` (crea DB/roles de app y n8n en primer arranque)
 
 ## Notas
 
@@ -66,4 +72,5 @@ Placeholders principales:
 - `env/.env.dev` y `env/.env.prod` no deben versionarse en proyectos reales
 - n8n usa PostgreSQL del stack (no SQLite)
 - la persistencia de PostgreSQL y n8n usa volumenes Docker nombrados (`postgres_data`, `n8n_data`)
+- `scripts/backup.sh` genera dump de DB app y dump de DB n8n, ambos comprimidos
 - la carpeta `backups` es persistente a nivel proyecto
