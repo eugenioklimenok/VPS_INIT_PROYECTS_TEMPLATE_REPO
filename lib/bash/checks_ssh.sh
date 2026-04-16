@@ -29,10 +29,21 @@ check_ssh() {
     return
   fi
 
-  if ! sshd -t >/dev/null 2>&1; then
+  local sshd_t_error
+  if ! sshd_t_error="$(run_sshd_syntax_check)"; then
+    if [[ -n "$sshd_t_error" ]] && [[ "${VERBOSE_MODE:-no}" == "yes" ]]; then
+      record_info "$category" "sshd -t detail: $sshd_t_error"
+    fi
+
+    if [[ "${EUID:-$(id -u)}" -ne 0 ]] && [[ -n "$sshd_t_error" ]] && printf '%s' "$sshd_t_error" | grep -Eqi 'permission denied|host key|privilege separation'; then
+      record_warn "$category" "SSH syntax check could not be completed without root privileges"
+      return
+    fi
+
     record_fail "$category" "SSH configuration syntax invalid"
     return
   fi
+  record_ok "$category" "SSH configuration syntax valid"
 
   local sshd_t root_login pass_auth pubkey_auth
   sshd_t="$(sshd -T 2>/dev/null || true)"
@@ -62,4 +73,31 @@ check_ssh() {
   else
     record_fail "$category" "Pubkey authentication disabled or unresolved (${pubkey_auth:-unknown})"
   fi
+}
+
+run_sshd_syntax_check() {
+  local output=""
+  local rc=0
+
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    output="$(sshd -t 2>&1)"
+    rc=$?
+  elif command_exists sudo; then
+    output="$(sudo -n sshd -t 2>&1)"
+    rc=$?
+    if [[ $rc -ne 0 ]] && printf '%s' "$output" | grep -Eqi 'password is required|a terminal is required'; then
+      output="$(sshd -t 2>&1)"
+      rc=$?
+    fi
+  else
+    output="$(sshd -t 2>&1)"
+    rc=$?
+  fi
+
+  if [[ $rc -ne 0 ]]; then
+    printf '%s' "$output"
+    return "$rc"
+  fi
+
+  return 0
 }

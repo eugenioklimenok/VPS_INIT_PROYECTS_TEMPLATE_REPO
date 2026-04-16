@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# shellcheck source=../../common.sh
+source "$REPO_ROOT/lib/bash/common.sh"
+# shellcheck source=../../log.sh
+source "$REPO_ROOT/lib/bash/log.sh"
+# shellcheck source=../../setup_ssh.sh
+source "$REPO_ROOT/lib/bash/setup_ssh.sh"
+# shellcheck source=../../harden_ssh.sh
+source "$REPO_ROOT/lib/bash/harden_ssh.sh"
+
+TARGET_USER=""
+NON_INTERACTIVE="no"
+REPORT_FILE=""
+
+usage() {
+  cat <<'EOF'
+Usage: harden-vps [options]
+
+Options:
+  --user <user>           Operating user to validate for key-only access (default: from config or alex)
+  --non-interactive       Do not prompt for confirmation
+  --report <file>         Save execution report to file
+  --help                  Show this help
+EOF
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user)
+        shift
+        TARGET_USER="${1:-}"
+        [[ -n "$TARGET_USER" ]] || die "Missing value for --user"
+        ;;
+      --non-interactive)
+        NON_INTERACTIVE="yes"
+        ;;
+      --report)
+        shift
+        REPORT_FILE="${1:-}"
+        [[ -n "$REPORT_FILE" ]] || die "Missing value for --report"
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "Unknown argument: $1"
+        ;;
+    esac
+    shift
+  done
+}
+
+normalize_options() {
+  TARGET_USER="$(config_get_or_default "$TARGET_USER" "$DEFAULT_USER")"
+}
+
+precheck_os() {
+  log_step "Validating operating system"
+
+  [[ -f /etc/os-release ]] || abort "Missing /etc/os-release"
+
+  # shellcheck disable=SC1091
+  source /etc/os-release
+
+  [[ "${ID:-}" == "ubuntu" ]] || abort "Unsupported distro: ${ID:-unknown}"
+  log_ok "Ubuntu detected: ${PRETTY_NAME:-unknown}"
+}
+
+precheck_environment() {
+  log_step "Validating execution environment"
+
+  require_root
+  id "$TARGET_USER" >/dev/null 2>&1 || abort "User $TARGET_USER does not exist"
+  command_exists sshd || abort "sshd command not found"
+  log_ok "Execution prerequisites satisfied"
+}
+
+confirm_plan() {
+  if is_yes "$NON_INTERACTIVE"; then
+    return 0
+  fi
+
+  printf '\n'
+  printf 'This will harden the VPS with the following baseline:\n'
+  printf '  User validated for key-only: %s\n' "$TARGET_USER"
+  printf '  Root login SSH:              no\n'
+  printf '  Pubkey auth:                 yes\n'
+  printf '  Password auth:               no\n'
+  printf '\n'
+
+  read -r -p "Continue? [y/N]: " answer
+  case "$answer" in
+    y|Y|yes|YES)
+      ;;
+    *)
+      printf 'Aborted.\n'
+      exit 0
+      ;;
+  esac
+}
+
+write_report_if_requested() {
+  [[ -n "$REPORT_FILE" ]] || return 0
+
+  write_text_file "$REPORT_FILE" \
+    "harden-vps report" \
+    "timestamp=$(current_timestamp)" \
+    "target_user=$TARGET_USER" \
+    "password_auth=no" \
+    "root_login=no" \
+    "pubkey_auth=yes"
+
+  log_ok "Report written to $REPORT_FILE"
+}
+
+print_summary() {
+  cat <<EOF
+
+=== harden-vps summary ===
+User validated:     $TARGET_USER
+Password auth:      no
+Root login:         no
+Pubkey auth:        yes
+Report file:        ${REPORT_FILE:-stdout only}
+
+Next recommended steps:
+  1. Verify a fresh SSH login using key-based access
+  2. Run: ./bin/audit-vps --strict
+  3. Keep at least one active validated admin key for $TARGET_USER
+EOF
+}
+
+main() {
+  load_defaults "$REPO_ROOT/config/defaults.env"
+  parse_args "$@"
+  normalize_options
+
+  log_debug "Framework root: $REPO_ROOT"
+  log_debug "Target user: $TARGET_USER"
+
+  precheck_os
+  precheck_environment
+  confirm_plan
+
+  harden_ssh_access "$TARGET_USER"
+  write_report_if_requested
+  print_summary
+}
+
+main "$@"

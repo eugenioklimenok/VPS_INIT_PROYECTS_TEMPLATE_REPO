@@ -22,7 +22,16 @@ Regla obligatoria:
 - `harden-vps`
 
 Nota de ejecucion:
-- `audit-vps` funciona tanto como ejecutable (`./bin/audit-vps`) como invocado por Python (`python3 ./bin/audit-vps`).
+- `audit-vps`, `init-vps` y `harden-vps` funcionan como ejecutables (`./bin/...`) y como invocados por Python (`python3 ./bin/...`).
+
+Contrato operativo del bloque host:
+
+1. `audit-vps` es read-only (no modifica sistema).
+2. `init-vps` prepara usuario operativo `alex`, instala clave publica SSH en `authorized_keys`, deja acceso por clave listo y mantiene password auth habilitado hasta hardening.
+3. Validar login SSH real de `alex` con clave antes de endurecer.
+4. `harden-vps` deshabilita password auth y root login solo cuando existen prerrequisitos de acceso por clave (proteccion anti-lockout).
+
+La validacion del bloque host debe completarse antes de iniciar validaciones del bloque proyecto.
 
 ### Bloque proyecto
 

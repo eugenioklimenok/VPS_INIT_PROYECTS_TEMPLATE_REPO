@@ -50,7 +50,7 @@ cd VPS_INIT_PROYECTS_TEMPLATE_REPO
 chmod +x bin/*
 ```
 
-### 3) Auditar host inicial
+### 3) Auditar host inicial (read-only)
 
 ```bash
 ./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || true
@@ -66,19 +66,29 @@ python3 ./bin/audit-vps --expected-user alex --output /tmp/audit-before.txt || t
 ### 4) Inicializar host
 
 ```bash
-./bin/init-vps --user alex --timezone America/Argentina/Buenos_Aires --with-password-auth
-passwd alex
+python3 ./bin/init-vps --user alex --timezone America/Argentina/Buenos_Aires --with-password-auth --public-key "ssh-ed25519 AAAA... alex@laptop"
 ```
 
-### 5) Harden host
+Contrato de acceso SSH en `init-vps`:
+- instala `~alex/.ssh/authorized_keys` con ownership/permisos correctos
+- falla si no recibe clave publica (salvo `--allow-without-public-key` explicito)
+- no desactiva password auth ni root login en esta fase
+
+### 5) Validar acceso SSH de alex
 
 ```bash
-./bin/harden-vps --user alex
-./bin/audit-vps --expected-user alex --output /tmp/audit-after.txt
+ssh -i <ruta-clave-privada> alex@<ip-vps>
+```
+
+### 6) Harden host (paso final SSH)
+
+```bash
+python3 ./bin/harden-vps --user alex
+python3 ./bin/audit-vps --expected-user alex --output /tmp/audit-after.txt
 cat /tmp/audit-after.txt
 ```
 
-### 6) Cambiar a usuario operativo
+### 7) Cambiar a usuario operativo
 
 ```bash
 su - alex
@@ -89,7 +99,7 @@ cd VPS_INIT_PROYECTS_TEMPLATE_REPO
 chmod +x bin/*
 ```
 
-### 7) Generar proyecto
+### 8) Generar proyecto
 
 ```bash
 python3 ./bin/new-project soporte-app --base-path /home/alex/apps --domain 192.168.1.38
@@ -99,7 +109,7 @@ Regla de dominio en dev:
 - `new-project --domain` ahora se respeta en `.env.dev`, `.env.example` y `.env.prod`.
 - El acceso dev/lab queda coherente con ese valor.
 
-### 8) Revisar envs generados
+### 9) Revisar envs generados
 
 ```bash
 cd /home/alex/apps/soporte-app
@@ -108,13 +118,13 @@ sed -n '1,220p' env/.env.dev
 sed -n '1,220p' env/.env.prod
 ```
 
-### 9) Validar deploy sin levantar contenedores
+### 10) Validar deploy sin levantar contenedores
 
 ```bash
 python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /home/alex/apps/soporte-app --env dev --validate-only
 ```
 
-### 10) Deploy real
+### 11) Deploy real
 
 ```bash
 python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/deploy-project /home/alex/apps/soporte-app --env dev --timeout 90
@@ -129,7 +139,7 @@ Notas:
 - n8n usa `N8N_SECURE_COOKIE=false`.
 - En prod/HTTPS, usar `N8N_SECURE_COOKIE=true`.
 
-### 11) Auditar proyecto y validar runtime
+### 12) Auditar proyecto y validar runtime
 
 ```bash
 python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/audit-project /home/alex/apps/soporte-app --env dev
@@ -137,7 +147,7 @@ docker compose --env-file env/.env.dev -f docker-compose.yml -f compose.override
 docker compose --env-file env/.env.dev -f docker-compose.yml -f compose.override.yml logs --tail=120
 ```
 
-### 12) Ejecutar backup y verificar artefactos
+### 13) Ejecutar backup y verificar artefactos
 
 ```bash
 python3 /home/alex/repos/VPS_INIT_PROYECTS_TEMPLATE_REPO/bin/backup-project /home/alex/apps/soporte-app --env dev

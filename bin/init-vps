@@ -1,236 +1,25 @@
-#!/usr/bin/env bash
-set -u
+#!/usr/bin/env python3
+from __future__ import annotations
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+import subprocess
+import sys
+from pathlib import Path
 
-# shellcheck source=../lib/bash/common.sh
-source "$REPO_ROOT/lib/bash/common.sh"
-# shellcheck source=../lib/bash/log.sh
-source "$REPO_ROOT/lib/bash/log.sh"
-# shellcheck source=../lib/bash/setup_user.sh
-source "$REPO_ROOT/lib/bash/setup_user.sh"
-# shellcheck source=../lib/bash/setup_dirs.sh
-source "$REPO_ROOT/lib/bash/setup_dirs.sh"
-# shellcheck source=../lib/bash/setup_packages.sh
-source "$REPO_ROOT/lib/bash/setup_packages.sh"
-# shellcheck source=../lib/bash/setup_ssh.sh
-source "$REPO_ROOT/lib/bash/setup_ssh.sh"
-# shellcheck source=../lib/bash/setup_ufw.sh
-source "$REPO_ROOT/lib/bash/setup_ufw.sh"
-# shellcheck source=../lib/bash/setup_docker.sh
-source "$REPO_ROOT/lib/bash/setup_docker.sh"
 
-TARGET_USER=""
-TARGET_TIMEZONE=""
-PASSWORD_AUTH_MODE=""
-SKIP_DOCKER="no"
-NON_INTERACTIVE="no"
-REPORT_FILE=""
-PASSWORD_AUTH_FLAGS_SET=0
+def main(argv: list[str] | None = None) -> int:
+    args = argv if argv is not None else sys.argv[1:]
+    repo_root = Path(__file__).resolve().parents[1]
+    target = repo_root / "lib" / "bash" / "commands" / "init_vps.sh"
+    if not target.is_file():
+        print(f"init-vps wrapper error: script no encontrado: {target}", file=sys.stderr)
+        return 2
+    try:
+        result = subprocess.run(["bash", str(target), *args], check=False)
+    except FileNotFoundError:
+        print("init-vps wrapper error: bash no disponible en PATH", file=sys.stderr)
+        return 2
+    return int(result.returncode)
 
-usage() {
-  cat <<'EOF'
-Usage: init-vps [options]
 
-Options:
-  --user <user>                 Operating user to ensure (default: from config or alex)
-  --timezone <tz>               Timezone to set, e.g. America/Argentina/Buenos_Aires
-  --with-password-auth          Keep SSH password authentication enabled
-  --disable-password-auth       Disable SSH password authentication
-  --skip-docker                 Skip Docker installation
-  --non-interactive             Do not prompt for confirmation
-  --report <file>               Save execution report to file
-  --help                        Show this help
-EOF
-}
-
-parse_args() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --user)
-        shift
-        TARGET_USER="${1:-}"
-        [[ -n "$TARGET_USER" ]] || die "Missing value for --user"
-        ;;
-      --timezone)
-        shift
-        TARGET_TIMEZONE="${1:-}"
-        [[ -n "$TARGET_TIMEZONE" ]] || die "Missing value for --timezone"
-        ;;
-      --with-password-auth)
-        PASSWORD_AUTH_MODE="yes"
-        PASSWORD_AUTH_FLAGS_SET=$((PASSWORD_AUTH_FLAGS_SET + 1))
-        ;;
-      --disable-password-auth)
-        PASSWORD_AUTH_MODE="no"
-        PASSWORD_AUTH_FLAGS_SET=$((PASSWORD_AUTH_FLAGS_SET + 1))
-        ;;
-      --skip-docker)
-        SKIP_DOCKER="yes"
-        ;;
-      --non-interactive)
-        NON_INTERACTIVE="yes"
-        ;;
-      --report)
-        shift
-        REPORT_FILE="${1:-}"
-        [[ -n "$REPORT_FILE" ]] || die "Missing value for --report"
-        ;;
-      --help|-h)
-        usage
-        exit 0
-        ;;
-      *)
-        die "Unknown argument: $1"
-        ;;
-    esac
-    shift
-  done
-}
-
-normalize_options() {
-  TARGET_USER="$(config_get_or_default "$TARGET_USER" "$DEFAULT_USER")"
-
-  if [[ "$PASSWORD_AUTH_FLAGS_SET" -gt 1 ]]; then
-    die "Use only one of --with-password-auth or --disable-password-auth"
-  fi
-
-  if [[ -n "$PASSWORD_AUTH_MODE" ]]; then
-    PASSWORD_AUTH_MODE="$(normalize_yes_no "$PASSWORD_AUTH_MODE")" || die "Invalid password auth mode"
-  else
-    PASSWORD_AUTH_MODE="$(normalize_yes_no "$DEFAULT_ALLOW_PASSWORD_AUTH")" || die "Invalid DEFAULT_ALLOW_PASSWORD_AUTH"
-  fi
-}
-
-precheck_os() {
-  log_step "Validating operating system"
-
-  [[ -f /etc/os-release ]] || abort "Missing /etc/os-release"
-
-  # shellcheck disable=SC1091
-  source /etc/os-release
-
-  [[ "${ID:-}" == "ubuntu" ]] || abort "Unsupported distro: ${ID:-unknown}"
-  log_ok "Ubuntu detected: ${PRETTY_NAME:-unknown}"
-}
-
-precheck_environment() {
-  log_step "Validating execution environment"
-
-  require_root
-  command_exists apt-get || abort "apt-get not available"
-  log_ok "apt-get available"
-}
-
-validate_key_only_prereq() {
-  local auth_keys
-
-  if [[ "$PASSWORD_AUTH_MODE" != "no" ]]; then
-    return 0
-  fi
-
-  auth_keys="$(require_nonempty_authorized_keys "$TARGET_USER")"
-
-  log_ok "Key-only prerequisite satisfied for $TARGET_USER ($auth_keys)"
-}
-
-confirm_plan() {
-  if is_yes "$NON_INTERACTIVE"; then
-    return 0
-  fi
-
-  printf '\n'
-  printf 'This will initialize the VPS with the following baseline:\n'
-  printf '  User:             %s\n' "$TARGET_USER"
-  printf '  Timezone:         %s\n' "${TARGET_TIMEZONE:-<unchanged>}"
-  printf '  Password auth:    %s\n' "$PASSWORD_AUTH_MODE"
-  printf '  Docker install:   %s\n' "$(if is_yes "$SKIP_DOCKER"; then printf 'no'; else printf 'yes'; fi)"
-  printf '  Root login SSH:   no\n'
-  printf '  UFW ports:        22, 80, 443\n'
-  printf '\n'
-
-  read -r -p "Continue? [y/N]: " answer
-  case "$answer" in
-    y|Y|yes|YES)
-      ;;
-    *)
-      printf 'Aborted.\n'
-      exit 0
-      ;;
-  esac
-}
-
-maybe_set_timezone() {
-  if [[ -z "$TARGET_TIMEZONE" ]]; then
-    log_info "Timezone unchanged"
-    return 0
-  fi
-
-  log_step "Configuring timezone"
-  timedatectl set-timezone "$TARGET_TIMEZONE" || abort "Failed to set timezone to $TARGET_TIMEZONE"
-  log_ok "Timezone set to $TARGET_TIMEZONE"
-}
-
-write_report_if_requested() {
-  [[ -n "$REPORT_FILE" ]] || return 0
-
-  write_text_file "$REPORT_FILE" \
-    "init-vps report" \
-    "timestamp=$(current_timestamp)" \
-    "target_user=$TARGET_USER" \
-    "timezone=${TARGET_TIMEZONE:-unchanged}" \
-    "password_auth=$PASSWORD_AUTH_MODE" \
-    "docker_installed=$(if is_yes "$SKIP_DOCKER"; then printf 'no'; else printf 'yes'; fi)"
-
-  log_ok "Report written to $REPORT_FILE"
-}
-
-print_summary() {
-  cat <<EOF
-
-=== init-vps summary ===
-User:              $TARGET_USER
-Timezone:          ${TARGET_TIMEZONE:-unchanged}
-Password auth:     $PASSWORD_AUTH_MODE
-Docker installed:  $(if is_yes "$SKIP_DOCKER"; then printf 'no'; else printf 'yes'; fi)
-Report file:       ${REPORT_FILE:-stdout only}
-
-Next recommended steps:
-  1. Re-login as $TARGET_USER if group changes were applied
-  2. Run: ./bin/audit-vps
-  3. If desired later, harden SSH further with key-only auth
-EOF
-}
-
-main() {
-  load_defaults "$REPO_ROOT/config/defaults.env"
-  parse_args "$@"
-  normalize_options
-
-  log_debug "Framework root: $REPO_ROOT"
-  log_debug "Target user: $TARGET_USER"
-
-  precheck_os
-  precheck_environment
-  confirm_plan
-
-  ensure_user "$TARGET_USER"
-  validate_key_only_prereq
-  ensure_standard_dirs "$TARGET_USER"
-  install_base_packages
-  maybe_set_timezone
-  configure_ssh "$PASSWORD_AUTH_MODE"
-  configure_ufw
-
-  if is_yes "$SKIP_DOCKER"; then
-    log_info "Skipping Docker installation by request"
-  else
-    install_docker_stack "$TARGET_USER"
-  fi
-
-  write_report_if_requested
-  print_summary
-}
-
-main "$@"
+if __name__ == "__main__":
+    raise SystemExit(main())
