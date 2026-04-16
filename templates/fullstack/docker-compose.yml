@@ -50,8 +50,15 @@ services:
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: "${N8N_BASIC_AUTH_USER}"
       N8N_BASIC_AUTH_PASSWORD: "${N8N_BASIC_AUTH_PASSWORD}"
-      DB_TYPE: "sqlite"
+      DB_TYPE: "postgresdb"
+      DB_POSTGRESDB_HOST: "db"
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: "${POSTGRES_DB}"
+      DB_POSTGRESDB_USER: "${POSTGRES_USER}"
+      DB_POSTGRESDB_PASSWORD: "${POSTGRES_PASSWORD}"
       TZ: "${TIMEZONE}"
+    depends_on:
+      - db
     ports:
       - "${N8N_PORT}:5678"
     volumes:

@@ -365,7 +365,8 @@ Puertos internos del stack:
 - usa volumen nombrado `n8n_data`
 - path interno configurado en `/n8n/`
 - Basic Auth activo
-- persistencia basada en SQLite interno de n8n
+- persistencia de workflows/ejecuciones en PostgreSQL del stack
+- persistencia de configuracion local de n8n en volumen `n8n_data`
 
 ### 12.4 Servicio `caddy`
 

@@ -64,5 +64,6 @@ Placeholders principales:
 
 - `env/.env.example` se versiona
 - `env/.env.dev` y `env/.env.prod` no deben versionarse en proyectos reales
+- n8n usa PostgreSQL del stack (no SQLite)
 - la persistencia de PostgreSQL y n8n usa volumenes Docker nombrados (`postgres_data`, `n8n_data`)
 - la carpeta `backups` es persistente a nivel proyecto
