@@ -5,10 +5,17 @@ import threading
 import time
 import unittest
 import urllib.error
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
+from subprocess import CompletedProcess
 
-from lib.python.vps_init_framework.project_ops import ensure_http_status
+from lib.python.vps_init_framework.project_ops import (
+    ProjectOpsError,
+    ensure_databases_exist,
+    ensure_http_status,
+    ensure_postgres_ready,
+)
 
 
 class OkHandler(BaseHTTPRequestHandler):
@@ -76,6 +83,35 @@ class ProjectOpsHttpRetryTest(unittest.TestCase):
                 label="root",
             )
         self.assertEqual(status, 308)
+
+    def test_ensure_postgres_ready_executes_pg_isready(self) -> None:
+        env_values = {"POSTGRES_ADMIN_USER": "admin", "APP_DB_NAME": "appdb", "N8N_DB_NAME": "n8ndb"}
+        with patch(
+            "lib.python.vps_init_framework.project_ops.run_command",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+        ) as mocked:
+            ensure_postgres_ready(Path("/tmp/p"), Path("/tmp/p/env/.env.dev"), "dev", env_values)
+        self.assertTrue(mocked.called)
+        command = mocked.call_args.kwargs.get("command") or mocked.call_args.args[0]
+        self.assertIn("pg_isready", command)
+        self.assertIn("admin", command)
+
+    def test_ensure_databases_exist_passes_when_both_present(self) -> None:
+        env_values = {"POSTGRES_ADMIN_USER": "admin", "APP_DB_NAME": "appdb", "N8N_DB_NAME": "n8ndb"}
+        with patch(
+            "lib.python.vps_init_framework.project_ops.run_command",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="appdb\nn8ndb\n", stderr=""),
+        ):
+            ensure_databases_exist(Path("/tmp/p"), Path("/tmp/p/env/.env.dev"), "dev", env_values)
+
+    def test_ensure_databases_exist_fails_when_one_missing(self) -> None:
+        env_values = {"POSTGRES_ADMIN_USER": "admin", "APP_DB_NAME": "appdb", "N8N_DB_NAME": "n8ndb"}
+        with patch(
+            "lib.python.vps_init_framework.project_ops.run_command",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="appdb\n", stderr=""),
+        ):
+            with self.assertRaises(ProjectOpsError):
+                ensure_databases_exist(Path("/tmp/p"), Path("/tmp/p/env/.env.dev"), "dev", env_values)
 
 
 def reserve_free_port() -> int:

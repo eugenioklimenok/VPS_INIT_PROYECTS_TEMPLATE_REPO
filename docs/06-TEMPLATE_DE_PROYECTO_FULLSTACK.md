@@ -76,9 +76,14 @@ Todo proyecto nuevo debe nacer con una estructura uniforme para reducir decision
 - `N8N_PORT`
 - `CADDY_HTTP_PORT`
 - `CADDY_HTTPS_PORT`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
+- `POSTGRES_ADMIN_USER`
+- `POSTGRES_ADMIN_PASSWORD`
+- `APP_DB_NAME`
+- `APP_DB_USER`
+- `APP_DB_PASSWORD`
+- `N8N_DB_NAME`
+- `N8N_DB_USER`
+- `N8N_DB_PASSWORD`
 - `DOMAIN_NAME`
 
 ## Politica de envs

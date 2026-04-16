@@ -13,8 +13,10 @@ from vps_init_framework.project_ops import (
     HTTP_OK_STATUSES,
     ProjectOpsError,
     compose_base_command,
+    ensure_databases_exist,
     ensure_docker_available,
     ensure_http_status,
+    ensure_postgres_ready,
     ensure_validation_ok,
     find_port_conflicts,
     get_expected_services,
@@ -53,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print("[STEP] Verificando Docker y Compose")
         ensure_docker_available()
+        print("[STEP] Validando compose renderizado")
+        validate_compose_render(config)
         print("[STEP] Ejecutando deploy real (docker compose up)")
         run_compose_up(config)
         if not config.skip_health_checks:
@@ -125,6 +129,14 @@ def run_compose_up(config: DeployConfig) -> None:
                 f"puertos ocupados en el host: {joined}. Ajusta env/.env.{config.env_name} o libera esos puertos antes del deploy"
             ) from exc
         raise
+
+
+def validate_compose_render(config: DeployConfig) -> None:
+    run_command(
+        compose_base_command(config.project_path, config.env_file, config.env_name) + ["config"],
+        cwd=config.project_path,
+        error_prefix="docker compose config invalido",
+    )
 
 
 def preflight_host_ports(config: DeployConfig) -> None:
@@ -216,6 +228,9 @@ def run_health_checks(config: DeployConfig) -> None:
     missing = [service for service in expected_services if service not in running_services]
     if missing:
         raise ProjectOpsError(f"servicios no running despues del deploy: {', '.join(missing)}")
+
+    ensure_postgres_ready(config.project_path, config.env_file, config.env_name, config.env_values)
+    ensure_databases_exist(config.project_path, config.env_file, config.env_name, config.env_values)
 
     caddy_http_port = int(config.env_values["CADDY_HTTP_PORT"])
     api_port = int(config.env_values["API_PORT"])

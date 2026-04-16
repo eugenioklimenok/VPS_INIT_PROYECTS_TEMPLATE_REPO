@@ -8,11 +8,8 @@ services:
       APP_ENV: "${APP_ENV:-development}"
       PROJECT_NAME: "${PROJECT_NAME}"
       SECRET_KEY: "${SECRET_KEY}"
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: "${APP_DB_NAME}"
-      POSTGRES_USER: "${APP_DB_USER}"
-      POSTGRES_PASSWORD: "${APP_DB_PASSWORD}"
+      APP_DB_HOST: "db"
+      APP_DB_PORT: "5432"
       APP_DB_NAME: "${APP_DB_NAME}"
       APP_DB_USER: "${APP_DB_USER}"
       APP_DB_PASSWORD: "${APP_DB_PASSWORD}"
@@ -20,7 +17,8 @@ services:
     expose:
       - "8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - app_net
 
@@ -40,6 +38,12 @@ services:
       N8N_DB_PASSWORD: "${N8N_DB_PASSWORD}"
     ports:
       - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER} -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -68,7 +72,8 @@ services:
       DB_POSTGRESDB_PASSWORD: "${N8N_DB_PASSWORD}"
       TZ: "${TIMEZONE}"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "${N8N_PORT}:5678"
     volumes:

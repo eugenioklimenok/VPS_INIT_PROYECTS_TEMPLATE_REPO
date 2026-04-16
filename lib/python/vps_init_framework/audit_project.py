@@ -10,8 +10,10 @@ from pathlib import Path
 from vps_init_framework.project_ops import (
     HTTP_OK_STATUSES,
     ProjectOpsError,
+    ensure_databases_exist,
     ensure_docker_available,
     ensure_http_status,
+    ensure_postgres_ready,
     ensure_validation_ok,
     get_expected_services,
     get_running_services,
@@ -134,7 +136,7 @@ def add_validation_findings(findings: list[dict[str, str]], validation) -> None:
 
 def inspect_backups(config: AuditConfig) -> dict[str, object]:
     backups_dir = config.project_path / "backups"
-    backup_files = sorted(path for path in backups_dir.glob("*") if path.is_file() and path.name != ".gitkeep")
+    backup_files = sorted(path for path in backups_dir.rglob("*") if path.is_file() and path.name != ".gitkeep")
     if not backup_files:
         return {"count": 0, "latest": None, "fresh": False}
 
@@ -157,6 +159,30 @@ def add_runtime_findings(findings: list[dict[str, str]], config: AuditConfig, en
         findings.append({"severity": "error", "check": "containers", "message": ", ".join(missing)})
     else:
         findings.append({"severity": "ok", "check": "containers", "message": "todos los servicios estan running"})
+
+    for service in ("db", "api", "n8n", "caddy"):
+        if service in running:
+            findings.append({"severity": "ok", "check": f"service_{service}", "message": "running"})
+        else:
+            findings.append({"severity": "error", "check": f"service_{service}", "message": "not running"})
+
+    try:
+        ensure_postgres_ready(config.project_path, config.env_file, config.env_name, env_values)
+        findings.append({"severity": "ok", "check": "db_ready", "message": "postgres responde ready"})
+    except ProjectOpsError as exc:
+        findings.append({"severity": "error", "check": "db_ready", "message": str(exc)})
+
+    try:
+        ensure_databases_exist(config.project_path, config.env_file, config.env_name, env_values)
+        findings.append(
+            {
+                "severity": "ok",
+                "check": "db_exists",
+                "message": f"bases presentes: {env_values['APP_DB_NAME']}, {env_values['N8N_DB_NAME']}",
+            }
+        )
+    except ProjectOpsError as exc:
+        findings.append({"severity": "error", "check": "db_exists", "message": str(exc)})
 
     caddy_port = int(env_values["CADDY_HTTP_PORT"])
     api_port = int(env_values["API_PORT"])

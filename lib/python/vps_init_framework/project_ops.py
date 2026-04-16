@@ -315,3 +315,56 @@ def ensure_http_status(url: str, timeout: int, accepted_statuses: set[int], labe
     if last_status is not None:
         raise ProjectOpsError(f"status invalido en {label}: {last_status}")
     raise ProjectOpsError(f"fallo check HTTP de {label}: sin respuesta")
+
+
+def ensure_postgres_ready(project_path: Path, env_file: Path, env_name: str, env_values: dict[str, str]) -> None:
+    run_command(
+        compose_base_command(project_path, env_file, env_name)
+        + [
+            "exec",
+            "-T",
+            "db",
+            "pg_isready",
+            "-U",
+            env_values["POSTGRES_ADMIN_USER"],
+            "-d",
+            "postgres",
+        ],
+        cwd=project_path,
+        error_prefix="postgres no responde en estado ready",
+    )
+
+
+def ensure_databases_exist(project_path: Path, env_file: Path, env_name: str, env_values: dict[str, str]) -> None:
+    expected = {
+        env_values["APP_DB_NAME"],
+        env_values["N8N_DB_NAME"],
+    }
+    query = (
+        "SELECT datname "
+        "FROM pg_database "
+        f"WHERE datname IN ('{env_values['APP_DB_NAME']}','{env_values['N8N_DB_NAME']}') "
+        "ORDER BY datname;"
+    )
+    result = run_command(
+        compose_base_command(project_path, env_file, env_name)
+        + [
+            "exec",
+            "-T",
+            "db",
+            "psql",
+            "-U",
+            env_values["POSTGRES_ADMIN_USER"],
+            "-d",
+            "postgres",
+            "-tA",
+            "-c",
+            query,
+        ],
+        cwd=project_path,
+        error_prefix="fallo validacion de existencia de bases",
+    )
+    found = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    missing = sorted(expected - found)
+    if missing:
+        raise ProjectOpsError(f"bases faltantes en PostgreSQL: {', '.join(missing)}")

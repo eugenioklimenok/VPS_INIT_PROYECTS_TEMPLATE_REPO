@@ -114,9 +114,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--n8n-db-name", help="Nombre de la base de datos de n8n.")
     parser.add_argument("--n8n-db-user", help="Usuario de la base de datos de n8n.")
     parser.add_argument("--n8n-db-password", help="Password del usuario de la base de datos de n8n.")
-    parser.add_argument("--postgres-db", help="Alias legacy de --app-db-name.")
-    parser.add_argument("--postgres-user", help="Alias legacy de --app-db-user.")
-    parser.add_argument("--postgres-password", help="Alias legacy de --app-db-password.")
     parser.add_argument("--n8n-user", default="admin", help="Usuario inicial para Basic Auth de n8n.")
     parser.add_argument("--n8n-password", help="Password inicial para Basic Auth de n8n.")
     parser.add_argument("--secret-key", help="Secret key inicial para la API.")
@@ -162,9 +159,9 @@ def build_config(args: argparse.Namespace, repo_root: Path, defaults: dict[str, 
         raise GenerationError(f"la ruta destino ya existe: {output_path}")
 
     db_safe = args.project_name.replace("-", "_")
-    app_db_name = args.app_db_name or args.postgres_db or db_safe
-    app_db_user = args.app_db_user or args.postgres_user or f"{db_safe}_app"
-    app_db_password = args.app_db_password or args.postgres_password or generate_secret(24)
+    app_db_name = args.app_db_name or db_safe
+    app_db_user = args.app_db_user or f"{db_safe}_app"
+    app_db_password = args.app_db_password or generate_secret(24)
     n8n_db_name = args.n8n_db_name or f"{db_safe}_n8n"
     n8n_db_user = args.n8n_db_user or f"{db_safe}_n8n"
     n8n_db_password = args.n8n_db_password or generate_secret(24)

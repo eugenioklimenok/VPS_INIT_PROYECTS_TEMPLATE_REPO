@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import gzip
 import json
 import sys
 import tarfile
@@ -90,8 +89,10 @@ def prepare_output_dir(config: BackupConfig) -> Path:
 
 
 def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: Path) -> list[Path]:
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     project_name = env_values["PROJECT_NAME"]
+    run_dir = output_dir / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
     created_files: list[Path] = []
 
     if not config.skip_db_dump:
@@ -100,7 +101,7 @@ def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: 
             ("n8n", env_values["N8N_DB_USER"], env_values["N8N_DB_NAME"]),
         )
         for label, db_user, db_name in dumps:
-            db_backup = output_dir / f"{project_name}_{label}_pg_{timestamp}.sql.gz"
+            db_backup = run_dir / f"{label}_db.sql"
             result = run_command(
                 compose_base_command(config.project_path, config.env_file, config.env_name)
                 + ["exec", "-T", "db", "pg_dump", "-U", db_user, "-d", db_name],
@@ -108,12 +109,12 @@ def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: 
                 error_prefix=f"fallo dump PostgreSQL ({label})",
                 text=False,
             )
-            with gzip.open(db_backup, "wb") as handle:
+            with open(db_backup, "wb") as handle:
                 handle.write(result.stdout)
             created_files.append(db_backup)
 
     if not config.skip_config_archive:
-        config_backup = output_dir / f"{project_name}_config_{timestamp}.tar.gz"
+        config_backup = run_dir / "config.tar.gz"
         with tarfile.open(config_backup, "w:gz") as archive:
             for relative in (
                 "docker-compose.yml",
@@ -126,13 +127,14 @@ def create_backup(config: BackupConfig, env_values: dict[str, str], output_dir: 
                 archive.add(config.project_path / relative, arcname=relative)
         created_files.append(config_backup)
 
-    manifest = output_dir / f"{project_name}_manifest_{timestamp}.json"
+    manifest = run_dir / "metadata.json"
     manifest.write_text(
         json.dumps(
             {
                 "project_name": project_name,
                 "env": config.env_name,
-                "created_at_utc": timestamp,
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                "run_dir": str(run_dir),
                 "databases": {
                     "app": {"name": env_values["APP_DB_NAME"], "user": env_values["APP_DB_USER"]},
                     "n8n": {"name": env_values["N8N_DB_NAME"], "user": env_values["N8N_DB_USER"]},

@@ -1,6 +1,6 @@
 # __PROJECT_NAME__
 
-Proyecto full stack generado desde el template oficial del framework.
+Proyecto fullstack generado por `VPS_INIT_PROYECTS_TEMPLATE_REPO`.
 
 ## Stack
 
@@ -9,68 +9,40 @@ Proyecto full stack generado desde el template oficial del framework.
 - n8n
 - Caddy
 
-## Estructura
+## DB model
 
-```text
-__PROJECT_NAME__/
-|-- api/
-|-- backups/
-|-- caddy/
-|-- env/
-|-- n8n/
-|-- postgres/
-|-- scripts/
-|-- compose.override.yml
-|-- docker-compose.yml
-`-- Makefile
-```
+- admin bootstrap: `POSTGRES_ADMIN_USER`, `POSTGRES_ADMIN_PASSWORD`
+- app DB: `APP_DB_NAME`, `APP_DB_USER`, `APP_DB_PASSWORD`
+- n8n DB: `N8N_DB_NAME`, `N8N_DB_USER`, `N8N_DB_PASSWORD`
 
-## Variables del proyecto
-
-Este proyecto se genera a partir de placeholders del framework.
-
-Placeholders principales:
-
-- `__PROJECT_NAME__`
-- `__DOMAIN_NAME__`
-- `__API_PORT__`
-- `__POSTGRES_PORT__`
-- `__N8N_PORT__`
-- `__CADDY_HTTP_PORT__`
-- `__CADDY_HTTPS_PORT__`
-- `__POSTGRES_ADMIN_USER__`
-- `__POSTGRES_ADMIN_PASSWORD__`
-- `__APP_DB_NAME__`
-- `__APP_DB_USER__`
-- `__APP_DB_PASSWORD__`
-- `__N8N_DB_NAME__`
-- `__N8N_DB_USER__`
-- `__N8N_DB_PASSWORD__`
-- `__N8N_BASIC_AUTH_USER__`
-- `__N8N_BASIC_AUTH_PASSWORD__`
-- `__SECRET_KEY__`
+n8n usa PostgreSQL del stack (`DB_TYPE=postgresdb`), no SQLite.
 
 ## Primer uso
 
-1. Revisar `env/.env.dev` y `env/.env.prod`
-2. Ajustar `__DOMAIN_NAME__` y credenciales reales
-3. Levantar el stack con `make up`
-4. Validar servicios con `make ps` y `make logs`
+```bash
+cp env/.env.example env/.env.dev
+cp env/.env.example env/.env.prod
+make up
+make ps
+```
 
-## Scripts operativos
+## Backup
 
-- `scripts/up.sh`
-- `scripts/down.sh`
-- `scripts/logs.sh`
-- `scripts/backup.sh`
-- `scripts/restore.sh`
-- `postgres/init/01-bootstrap-multi-db.sql` (crea DB/roles de app y n8n en primer arranque)
+`scripts/backup.sh <env>` crea:
 
-## Notas
+- `backups/YYYYMMDD_HHMM/app_db.sql`
+- `backups/YYYYMMDD_HHMM/n8n_db.sql`
+- `backups/YYYYMMDD_HHMM/metadata.json`
 
-- `env/.env.example` se versiona
-- `env/.env.dev` y `env/.env.prod` no deben versionarse en proyectos reales
-- n8n usa PostgreSQL del stack (no SQLite)
-- la persistencia de PostgreSQL y n8n usa volumenes Docker nombrados (`postgres_data`, `n8n_data`)
-- `scripts/backup.sh` genera dump de DB app y dump de DB n8n, ambos comprimidos
-- la carpeta `backups` es persistente a nivel proyecto
+## Restore
+
+```bash
+# restore completo
+./scripts/restore.sh dev backups/20260415_0130 all
+
+# restore solo app
+./scripts/restore.sh dev backups/20260415_0130/app_db.sql app
+
+# restore solo n8n
+./scripts/restore.sh dev backups/20260415_0130/n8n_db.sql n8n
+```
