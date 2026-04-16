@@ -149,6 +149,7 @@ VPS_INIT_PROYECTS_TEMPLATE_REPO/
 
 Guia extendida y manuales:
 
+- `docs/38-TDD_TECNICO_COMPLETO.md`
 - `docs/35-GUIA_USUARIO_FINAL_VPS_INIT.md`
 - `docs/36-MANUAL_USO_PASO_A_PASO.md`
 - `docs/37-QUICKSTART.md`
