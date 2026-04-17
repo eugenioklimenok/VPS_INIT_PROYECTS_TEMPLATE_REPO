@@ -88,6 +88,8 @@ python3 ./bin/audit-vps --expected-user alex --output /tmp/audit-after.txt
 cat /tmp/audit-after.txt
 ```
 
+`harden-vps` valida hardening efectivo con `sshd -T` (no solo cambios en archivos) y falla si `PasswordAuthentication`, `PubkeyAuthentication`, `PermitRootLogin` o `KbdInteractiveAuthentication` no quedan en el baseline esperado.
+
 ### 7) Cambiar a usuario operativo
 
 ```bash

@@ -30,6 +30,7 @@ Contrato operativo del bloque host:
 2. `init-vps` prepara usuario operativo `alex`, instala clave publica SSH en `authorized_keys`, deja acceso por clave listo y mantiene password auth habilitado hasta hardening.
 3. Validar login SSH real de `alex` con clave antes de endurecer.
 4. `harden-vps` deshabilita password auth y root login solo cuando existen prerrequisitos de acceso por clave (proteccion anti-lockout).
+5. `harden-vps` valida estado efectivo con `sshd -T` (incluyendo `Include` de `sshd_config.d`) y falla si no quedan: `passwordauthentication no`, `pubkeyauthentication yes`, `permitrootlogin no`, `kbdinteractiveauthentication no`.
 
 La validacion del bloque host debe completarse antes de iniciar validaciones del bloque proyecto.
 
